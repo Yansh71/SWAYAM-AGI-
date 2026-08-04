@@ -1,0 +1,34 @@
+name: SWAYAM-AGI Agentic CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Compilers (GCC 14 / C++23 Support)
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          sudo apt-get update
+          sudo apt-get install -y g++-14 cmake
+
+      - name: Configure CMake
+        run: |
+          mkdir build && cd build
+          cmake -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Build SWAYAM Core
+        run: |
+          cd build
+          cmake --build . --parallel $(nproc)
+
+      - name: Execute Sovereign Binaries
+        run: |
+          ./build/swayam_core
