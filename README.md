@@ -1,44 +1,42 @@
+# SWAYAM-AGI: Sovereign Universal Agentic Control Plane & C++23 Core
+
 ![CI Pipeline](https://github.com/Yansh71/SWAYAM-AGI-/actions/workflows/agentic_ci_cd.yml/badge.svg)
-# SWAYAM-AGI: Sovereign Universal Agentic Control Plane & Self-Evolving C++23 Core
 
-> **Sovereign Architect:** Muhammad Yasin  
-> **Operational Status:** Production-Ready, Zero-Vendor, Quantum-Inspired Agentic Ecosystem  
-
----
-
-## 🌟 Vision & Overview
-**SWAYAM-AGI** is an ultra-high-performance, sovereign agentic AI framework and systems architecture engineered from first principles in modern **C++23**. Designed to bridge the gap between autonomous LLM orchestration and low-level kernel safety, it serves as an enterprise-grade control plane for modern software development life cycles (SDLC).
-
-Whether you are a beginner looking to understand clean system architecture or a seasoned enterprise architect building secure, self-healing execution pipelines, SWAYAM-AGI provides unmatched clarity, raw performance, and absolute local sovereignty.
+## 🌟 Vision
+SWAYAM-AGI is a high-performance, ultra-low latency C++23 agentic core framework designed for autonomous execution, concurrency safety, and infrastructure scalability.
 
 ---
 
-## 🚀 Key Architectural Pillars
+## 🛠️ Current Status (v0.1.0-dev)
+The project is currently in **Phase 1** of development. 
 
-1. **Quantum Superposition Memory Mesh:** Hilbert space complex probability amplitudes for multi-dimensional state management.
-2. **Agentic SDLC Control Plane:** Fully autonomous workflow orchestration natively integrated with GitHub actions and pipelines.
-3. **Low-Level Memory Safety (C++23):** Strict compile-time safety, `std::expected` error handling, and zero-overhead abstractions.
-4. **Ephemeral Sandboxing & ZKP Security:** Zero-Knowledge Proof validation layers isolating untrusted runtime code execution.
-5. **Real-Time AST Self-Healing:** Autonomous syntax tree introspection and weakness-patching core.
+* **Core Engine:** Base C++23 runtime initialized.
+* **CI/CD Pipeline:** Fully automated workflow testing and build checks.
+* **Security:** GitHub Advanced Security & CodeQL scanning active.
 
 ---
 
-## Repository Architecture Layout
+## 🗺️ Project Roadmap
 
-```text
-SWAYAM-AGI/
-├── include/
-│   ├── swayam_core.hpp
-│   ├── quantum_memory.hpp
-│   └── agentic_bridge.hpp
-├── src/
-│   ├── main.cpp
-│   ├── sovereign_sync.cpp
-│   └── pipeline_governor.cpp
-├── .github/
-│   └── workflows/
-│       └── agentic_ci_cd.yml
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── BEGINNER_GUIDE.md
-└── CMakeLists.txt
+### Phase 0: Groundwork & Infrastructure (Completed)
+- [x] Modern CMake Setup with GCC 14 C++23 support.
+- [x] GitHub Actions CI/CD Integration with Live Status Badging.
+
+### Phase 1: Sovereign Core Implementation (In Progress)
+- [ ] Implement `SovereignAgenticCore` with `std::atomic` lock-free guard.
+- [ ] Add `std::expected` and `CoreError` enum class error handling.
+- [ ] Refactor include structure to `include/swayam/core.hpp`.
+- [ ] Concurrent thread execution unit tests.
+
+### Phase 2: Usability & Developer Tools
+- [ ] `find_package()` CMake export support.
+- [ ] Runnable code examples in `examples/`.
+- [ ] Tag official `v0.1.0` release.
+
+### Phase 3: Architectural Pillar Focus
+- [ ] **AST Self-Healing System:** Autonomous code repair registry.
+
+### Phase 4: Production Benchmarks
+- [ ] Google Benchmark integration for performance verification.
+- [ ] Developer guidelines (`CONTRIBUTING.md`).
+- [ ] 
