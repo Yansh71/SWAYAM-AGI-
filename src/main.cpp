@@ -1,12 +1,20 @@
-#include "swayam_core.hpp"
+#include <iostream>
+#include "swayam/core.hpp"
 
 int main() {
-    std::cout << "==========================================" << std::endl;
-    std::cout << "   SWAYAM-AGI Sovereign Kernel Runtime    " << std::endl;
-    std::cout << "==========================================" << std::endl;
+    swayam::SovereignAgenticCore core;
 
-    auto engine = std::make_unique<Swayam::CoreEngine>();
-    engine->executeSovereignKernel();
+    std::cout << "[SWAYAM-AGI Core] System Online.\n";
+
+    auto result = core.execute_agentic_task([]() {
+        std::cout << "[SWAYAM-AGI Core] Executing agentic task logic...\n";
+    });
+
+    if (result.has_value()) {
+        std::cout << "[SWAYAM-AGI Core] Task executed successfully!\n";
+    } else {
+        std::cout << "[SWAYAM-AGI Core] Execution failed with error code.\n";
+    }
 
     return 0;
 }
