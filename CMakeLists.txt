@@ -1,9 +1,17 @@
-cmake_minimum_required(VERSION 3.20)
-project(SWAYAM_AGI VERSION 0.1.0 LANGUAGES CXX)
+#ifndef SWAYAM_ERROR_HPP
+#define SWAYAM_ERROR_HPP
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#include <cstdint>
 
-add_executable(SWAYAM_AGI src/main.cpp)
+namespace swayam {
 
-target_include_directories(SWAYAM_AGI PRIVATE include)
+enum class CoreError : std::uint32_t {
+    Success = 0x0,
+    Busy = 0x403,
+    TaskThrew = 0x500
+};
+
+} // namespace swayam
+
+#endif // SWAYAM_ERROR_HPP
+
