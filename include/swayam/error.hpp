@@ -1,5 +1,4 @@
 #ifndef SWAYAM_ERROR_HPP
-#ifndef SWAYAM_ERROR_HPP
 #define SWAYAM_ERROR_HPP
 
 #include <cstdint>
