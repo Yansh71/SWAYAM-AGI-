@@ -21,14 +21,13 @@ jobs:
 
       - name: Configure CMake
         run: |
-          mkdir build && cd build
-          cmake -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release ..
+          cmake -B build -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build SWAYAM Core
         run: |
-          cd build
-          cmake --build . --parallel $(nproc)
+          cmake --build build --parallel $(nproc)
 
       - name: Execute Sovereign Binaries
         run: |
           ./build/swayam_core
+          
