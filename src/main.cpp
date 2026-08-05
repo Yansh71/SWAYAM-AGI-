@@ -13,7 +13,7 @@ int main() {
     if (result.has_value()) {
         std::cout << "[SWAYAM-AGI Core] Task executed successfully!\n";
     } else {
-        std::cout << "[SWAYAM-AGI Core] Execution failed with error code.\n";
+        std::cout << "[SWAYAM-AGI Core] Execution failed.\n";
     }
 
     return 0;
