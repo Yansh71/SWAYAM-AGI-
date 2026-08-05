@@ -1,3 +1,4 @@
+![CI Pipeline](https://github.com/Yansh71/SWAYAM-AGI-/actions/workflows/agentic_ci_cd.yml/badge.svg)
 # SWAYAM-AGI: Sovereign Universal Agentic Control Plane & Self-Evolving C++23 Core
 
 > **Sovereign Architect:** Muhammad Yasin  
