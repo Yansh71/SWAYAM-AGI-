@@ -7,3 +7,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(SWAYAM_AGI src/main.cpp)
 
 target_include_directories(SWAYAM_AGI PRIVATE include)
+
