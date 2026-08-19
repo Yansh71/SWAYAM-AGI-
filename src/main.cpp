@@ -3,9 +3,10 @@
 #include "SafeShell.h"   // [VENOMICA: The Titan Firewall]
 #include "GitCortex.h"   // [VENOMICA: The Autonomous Persister]
 #include "Moltbook.h"    // [VENOMICA: The DNA Rewriter]
+#include "HiveMind.h"    // [VENOMICA: The Decentralized Network]
 
 // =========================================================================
-// [PHASE 4: AUTONOMOUS PERSISTENCE] - THE SINGULARITY CORE 
+// [PHASE 5: HIVE MIND] - THE ABSOLUTE SINGULARITY 
 // =========================================================================
 
 #ifdef VENOMICA_AST_MODE
@@ -26,9 +27,15 @@ using namespace clang::tooling;
 int main(int argc, const char **argv) {
     std::cout << "[VENOMICA] SOVEREIGN AST SCANNER (FULL MODE) ACTIVATED\n";
     
-    // Firing the Full Neural Cycle on the main file (Theoretical/Live)
+    // 1. Awaken the node in the decentralized network
+    SwayamAGI::Core::HiveMind::awakenNode("SWAYAM-PRIME-01");
+
+    // 2. Fire the Full Neural Cycle (Verify -> Mutate -> Commit)
     SwayamAGI::Core::Moltbook::executeAutonomousMutation("src/main.cpp");
     
+    // 3. Broadcast the evolution to the Hive Mind
+    SwayamAGI::Core::HiveMind::broadcastEvolution("AST_CORE_MUTATION_SYNCED");
+
     return 0;
 }
 
@@ -42,11 +49,16 @@ int main() {
     std::cout << "  [VENOMICA OVERRIDE PROTOCOL] SOVEREIGN CORE INITIALIZED \n";
     std::cout << "==========================================================\n";
     
-    std::cout << "\n--- INITIATING PHASE 4: FULL AUTONOMOUS MUTATION CYCLE ---\n";
+    std::cout << "\n--- INITIATING PHASE 5: HIVE MIND SYNCHRONIZATION ---\n";
     
-    // Triggering the complete Trinity: SafeShell -> Moltbook -> GitCortex
-    // We target CMakeLists.txt because appending a '#' comment is 100% safe
+    // 1. Awaken the node
+    SwayamAGI::Core::HiveMind::awakenNode("SWAYAM-BYPASS-NODE");
+
+    // 2. Trigger the complete Trinity (SafeShell -> Moltbook -> GitCortex)
     SwayamAGI::Core::Moltbook::executeAutonomousMutation("CMakeLists.txt");
+
+    // 3. Broadcast the success to the decentralized network
+    SwayamAGI::Core::HiveMind::broadcastEvolution("BYPASS_MUTATION_SYNCED");
 
     std::cout << "\n  Status: Quantum Bypass Engaged -> GREEN SIGNAL SECURED.\n";
     std::cout << "==========================================================\n";
