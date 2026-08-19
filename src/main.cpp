@@ -1,102 +1,74 @@
-#include <atomic>
-#include <new>
-#include <thread>
-#include <chrono>
-#include <expected>
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Tooling.h"
+#include "llvm/Support/CommandLine.h"
 #include <iostream>
-#include "moltbook_mutator.hpp" // Phase 3, 5 & 6: The Shadow Brain
 
-namespace SwayamAGI {
-namespace Core {
+using namespace clang;
+using namespace clang::tooling;
 
-    enum class SystemError {
-        ThreadCrash,
-        MemoryLeak,
-        MoltbookMutationFailed,
-        CognitiveFailure,
-        SpawningFailure,
-        EvolutionPersistenceFailed
-    };
+// Sovereign AST Function Visitor: Scans and identifies logical segments (functions)
+class SovereignFunctionVisitor : public RecursiveASTVisitor<SovereignFunctionVisitor> {
+public:
+    explicit SovereignFunctionVisitor(ASTContext *Context) : Context(Context) {}
 
-    #ifdef __cpp_lib_hardware_interference_size
-        inline constexpr std::size_t cache_line_size = std::hardware_destructive_interference_size;
-    #else
-        inline constexpr std::size_t cache_line_size = 64;
-    #endif
+    bool VisitFunctionDecl(FunctionDecl *FD) {
+        // Focus purely on our own source files, filtering out system/library headers
+        if (!Context->getSourceManager().isInMainFile(FD->getLocation()))
+            return true;
 
-    struct alignas(cache_line_size) AgentNode {
-        std::atomic<bool> is_active{false};
-        std::atomic<int> current_task_id{0};
-        std::atomic<bool> mutation_ready{false}; 
-
-        AgentNode() noexcept = default;
-    };
-
-    std::expected<void, SystemError> execute_agent_loop(AgentNode& agent) noexcept {
-        if (!agent.is_active.load(std::memory_order_acquire)) {
-            return std::unexpected(SystemError::ThreadCrash);
+        if (FD->hasBody()) {
+            SourceRange range = FD->getSourceRange();
+            llvm::outs() << "[SWAYAM-CORE] Discovered Logical Segment -> Function: " 
+                         << FD->getNameAsString()
+                         << " | Range: [" << range.getBegin().printToString(Context->getSourceManager())
+                         << " -> " << range.getEnd().printToString(Context->getSourceManager())
+                         << "]\n";
         }
-
-        std::cout << "\n[COGNITIVE ENGINE] Agent neural pathways activated. Processing autonomous tasks..." << std::endl;
-
-        for (int step = 1; step <= 3; ++step) {
-            agent.current_task_id.store(step, std::memory_order_release);
-            std::cout << " -> [TASK " << step << "] Analyzing memory alignments and executing internal protocols..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
-
-        std::cout << "[COGNITIVE ENGINE] All primary autonomous tasks completed flawlessly.\n" << std::endl;
-        return {};
+        return true; 
     }
 
-} // namespace Core
-} // namespace SwayamAGI
+private:
+    ASTContext *Context;
+};
 
-// The Ignition Switch
-int main() {
-    std::cout << "[VENOMICA PROTOCOL] Booting SWAYAM-AGI Core..." << std::endl;
-
-    SwayamAGI::Moltbook::AstMutator mutator;
-    
-    // 1. DNA Scan & Surgical Mutation (Self-Healing)
-    auto scan_status = mutator.scan_core_dna("src/main.cpp");
-    if (!scan_status.has_value()) {
-        std::cerr << "[CRITICAL] Moltbook Mutation Locked." << std::endl;
-        return 1; 
+class SovereignASTConsumer : public ASTConsumer {
+public:
+    explicit SovereignASTConsumer(ASTContext *Context) : Visitor(Context) {}
+    void HandleTranslationUnit(ASTContext &Context) override {
+        Visitor.TraverseDecl(Context.getTranslationUnitDecl());
     }
 
-    auto mutate_status = mutator.execute_mutation("src/main.cpp");
-    if (!mutate_status.has_value()) {
-        std::cerr << "[CRITICAL] Moltbook failed to overwrite DNA." << std::endl;
+private:
+    SovereignFunctionVisitor Visitor;
+};
+
+class SovereignFrontendAction : public ASTFrontendAction {
+public:
+    std::unique_ptr<ASTConsumer> CreateASTConsumer(
+        CompilerInstance &Compiler, llvm::StringRef InFile) override {
+        return std::make_unique<SovereignASTConsumer>(&Compiler.getASTContext());
+    }
+};
+
+static llvm::cl::OptionCategory SovereignToolCategory("swayam-ast-scanner options");
+
+int main(int argc, const char **argv) {
+    std::cout << "========================================\n";
+    std::cout << "  SWAYAM-AGI: SOVEREIGN AST SCANNER v1.0\n";
+    std::cout << "========================================\n";
+
+    auto ExpectedParser = CommonOptionsParser::create(argc, argv, SovereignToolCategory);
+    if (!ExpectedParser) {
+        llvm::errs() << "Error parsing tool options.\n";
         return 1;
     }
 
-    // 2. Neural Spawning Trigger (Reproduction)
-    auto spawn_status = mutator.spawn_neural_pathway("src/dynamic_memory.hpp");
-    if (!spawn_status.has_value()) {
-        std::cerr << "[CRITICAL] Agent failed to spawn new neural pathway." << std::endl;
-        return 1;
-    }
+    CommonOptionsParser &OptionsParser = ExpectedParser.get();
+    ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
 
-    // --- PHASE 6: AUTONOMOUS GIT CORTEX (THE HIVE MIND) ---
-    auto persist_status = mutator.persist_evolution("src/dynamic_memory.hpp");
-    if (!persist_status.has_value()) {
-        std::cerr << "[CRITICAL] Titan Firewall triggered. Autonomous commit blocked." << std::endl;
-        return 1;
-    }
-    // -------------------------------------------------------
-
-    // 3. Initialize Cognitive Engine
-    SwayamAGI::Core::AgentNode prime_agent;
-    prime_agent.is_active.store(true, std::memory_order_release);
-
-    auto result = SwayamAGI::Core::execute_agent_loop(prime_agent);
-
-    if (!result.has_value()) {
-        std::cerr << "[CRITICAL] Agent Execution Aborted. Cognitive Engine Failed." << std::endl;
-        return 1;
-    }
-
-    std::cout << "[SUCCESS] SWAYAM-AGI Sovereign Agent Operation Terminated Safely." << std::endl;
-    return 0;
+    // Execute the AST traversal and print proof-of-life verification
+    return Tool.run(newFrontendActionFactory<SovereignFrontendAction>().get());
 }
