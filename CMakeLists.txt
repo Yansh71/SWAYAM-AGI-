@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# LLVM and Clang include directories
+# LLVM and Clang include directories for Ubuntu runner
 include_directories(/usr/lib/llvm-17/include)
 link_directories(/usr/lib/llvm-17/lib)
 
@@ -13,10 +13,11 @@ add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Use explicit static/shared flags and proper clang shared library linking
+# Link against the correct generic clang library and core threading/dl libraries
 target_link_libraries(SWAYAM_AGI PRIVATE 
-    -lclang-17
+    clang
+    pthread
+    dl
 )
 
 enable_testing()
-
