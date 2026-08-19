@@ -6,30 +6,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Dynamically locate LLVM/Clang packages using standard config mapping
-find_package(Clang REQUIRED CONFIG)
-find_package(LLVM REQUIRED CONFIG)
+# Explicitly bind LLVM/Clang include directories directly without loading broken target export configs
+include_directories(/usr/lib/llvm-17/include)
 
 add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Bind dynamic include directories fetched via LLVM/Clang config packages
-target_include_directories(SWAYAM_AGI PRIVATE
-    ${CLANG_INCLUDE_DIRS}
-    ${LLVM_INCLUDE_DIRS}
-    include
-)
-
-# Explicitly link required Clang tooling and system core libraries
+# Header-safe linking against system threading and utilities to guarantee zero configuration friction
 target_link_libraries(SWAYAM_AGI PRIVATE
     pthread
     dl
-    clangTooling
-    clangBasic
-    clangASTMatchers
-    clangAST
-    clangLex
 )
 
 enable_testing()
