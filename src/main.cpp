@@ -3,19 +3,19 @@
 #include <thread>
 #include <expected>
 #include <iostream>
+#include "moltbook_mutator.hpp" // Phase 3: The Shadow Brain Injection
 
 namespace SwayamAGI {
 namespace Core {
 
-    // 1. Error Handling Enum (No more Try-Catch crashes)
+    // 1. Error Handling Enum
     enum class SystemError {
         ThreadCrash,
         MemoryLeak,
         MoltbookMutationFailed
     };
 
-    // 2. The Titan Defense Alignment (Eliminating False Sharing)
-    // Using C++17/23 standard for optimal cache line size (usually 64 bytes)
+    // 2. The Titan Defense Alignment
     #ifdef __cpp_lib_hardware_interference_size
         inline constexpr std::size_t cache_line_size = std::hardware_destructive_interference_size;
     #else
@@ -34,7 +34,7 @@ namespace Core {
         AgentNode() noexcept = default;
     };
 
-    // 4. Execution Protocol with std::expected (Silent Error Handling)
+    // 4. Execution Protocol
     std::expected<void, SystemError> execute_agent_loop(AgentNode& agent) noexcept {
         if (!agent.is_active.load(std::memory_order_acquire)) {
             return std::unexpected(SystemError::ThreadCrash);
@@ -48,9 +48,21 @@ namespace Core {
 
 } // namespace Core
 } // namespace SwayamAGI
+
 // The Ignition Switch: Execution Entry Point
 int main() {
     std::cout << "[VENOMICA PROTOCOL] Booting SWAYAM-AGI Core..." << std::endl;
+
+    // --- PHASE 3: MOLTBOOK FUSION ---
+    SwayamAGI::Moltbook::AstMutator mutator;
+    // Agent autonomously scans its own source code
+    auto mutation_status = mutator.scan_core_dna("src/main.cpp");
+    
+    if (!mutation_status.has_value()) {
+        std::cerr << "[CRITICAL] Moltbook Mutation Locked or Failed. Access Denied." << std::endl;
+        return 1; // Kill process if shadow identity fails
+    }
+    // --------------------------------
 
     // Initialize the Prime Agent with Titan Defense Alignment
     SwayamAGI::Core::AgentNode prime_agent;
