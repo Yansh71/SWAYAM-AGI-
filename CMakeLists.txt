@@ -5,17 +5,19 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# CRITICAL: Enable compile_commands.json export for Clang LibTooling
+# Enable compile_commands.json export
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Explicitly point compiler to LLVM 17 include directory so clang/AST headers are resolved
-include_directories(/usr/lib/llvm-17/include)
 
 add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Header-safe linking strategy: bind strictly to system threading and dynamic utilities
+# Explicitly target-level bind LLVM 17 include directories so it forces the compiler to find the headers
+target_include_directories(SWAYAM_AGI PRIVATE 
+    /usr/lib/llvm-17/include
+)
+
+# Bind system threading and dynamic utilities
 target_link_libraries(SWAYAM_AGI PRIVATE 
     pthread
     dl
