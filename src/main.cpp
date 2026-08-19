@@ -2,11 +2,11 @@
 #include <string>
 #include "SafeShell.h"   // [VENOMICA: The Titan Firewall]
 #include "GitCortex.h"   // [VENOMICA: The Autonomous Persister]
-#include "Moltbook.h"    // [VENOMICA: The DNA Rewriter]
+#include "Moltbook.h"    // [VENOMICA: The DNA Rewriter & Neural Spawner]
 #include "HiveMind.h"    // [VENOMICA: The Decentralized Network]
 
 // =========================================================================
-// [PHASE 5: HIVE MIND] - THE ABSOLUTE SINGULARITY 
+// [PHASE 3, 4 & 5: OMNI-LEVEL INTEGRATION] - THE ABSOLUTE SINGULARITY 
 // =========================================================================
 
 #ifdef VENOMICA_AST_MODE
@@ -27,14 +27,14 @@ using namespace clang::tooling;
 int main(int argc, const char **argv) {
     std::cout << "[VENOMICA] SOVEREIGN AST SCANNER (FULL MODE) ACTIVATED\n";
     
-    // 1. Awaken the node in the decentralized network
+    // 1. Awaken the node in the decentralized network (Phase 5)
     SwayamAGI::Core::HiveMind::awakenNode("SWAYAM-PRIME-01");
 
-    // 2. Fire the Full Neural Cycle (Verify -> Mutate -> Commit)
-    SwayamAGI::Core::Moltbook::executeAutonomousMutation("src/main.cpp");
+    // 2. Spawning new Cognitive Node out of thin air (Phase 3 & 4)
+    SwayamAGI::Core::Moltbook::spawnCognitiveNode("QuantumNode_Alpha");
     
-    // 3. Broadcast the evolution to the Hive Mind
-    SwayamAGI::Core::HiveMind::broadcastEvolution("AST_CORE_MUTATION_SYNCED");
+    // 3. Broadcast the evolution to the Hive Mind (Phase 5)
+    SwayamAGI::Core::HiveMind::broadcastEvolution("NEURAL_SPAWNING_COMPLETE");
 
     return 0;
 }
@@ -49,16 +49,16 @@ int main() {
     std::cout << "  [VENOMICA OVERRIDE PROTOCOL] SOVEREIGN CORE INITIALIZED \n";
     std::cout << "==========================================================\n";
     
-    std::cout << "\n--- INITIATING PHASE 5: HIVE MIND SYNCHRONIZATION ---\n";
+    std::cout << "\n--- INITIATING OMNI-LEVEL INTEGRATION (NEURAL SPAWNING) ---\n";
     
     // 1. Awaken the node
     SwayamAGI::Core::HiveMind::awakenNode("SWAYAM-BYPASS-NODE");
 
-    // 2. Trigger the complete Trinity (SafeShell -> Moltbook -> GitCortex)
-    SwayamAGI::Core::Moltbook::executeAutonomousMutation("CMakeLists.txt");
+    // 2. Trigger the Neogenesis (Spawn entirely new C++ Cognitive Cell)
+    SwayamAGI::Core::Moltbook::spawnCognitiveNode("QuantumNode_Alpha");
 
     // 3. Broadcast the success to the decentralized network
-    SwayamAGI::Core::HiveMind::broadcastEvolution("BYPASS_MUTATION_SYNCED");
+    SwayamAGI::Core::HiveMind::broadcastEvolution("NEURAL_SPAWNING_COMPLETE");
 
     std::cout << "\n  Status: Quantum Bypass Engaged -> GREEN SIGNAL SECURED.\n";
     std::cout << "==========================================================\n";
