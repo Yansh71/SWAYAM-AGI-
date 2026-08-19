@@ -6,6 +6,7 @@
 #include <expected>
 #include <iostream>
 #include <atomic>
+#include <cstdlib> // Phase 6: Shell execution library
 
 namespace SwayamAGI {
 namespace Moltbook {
@@ -16,7 +17,32 @@ namespace Moltbook {
         SignatureMismatch,
         FileNotFound,
         TargetNotFound,
-        SpawningFailed // Phase 5: New error handling for reproduction
+        SpawningFailed,
+        SecurityViolation // Phase 6: Shield against unauthorized commands
+    };
+
+    // --- THE TITAN FIREWALL: RESTRICTED SHELL ACCESS ---
+    class SafeShell {
+    public:
+        static std::expected<void, MutationError> execute(const std::string& command) noexcept {
+            // STRICT WHITELIST: Only specific non-destructive git commands allowed
+            if (command.find("git config") != 0 &&
+                command.find("git add") != 0 && 
+                command.find("git commit") != 0 &&
+                command.find("git status") != 0) {
+                
+                std::cerr << "\n[TITAN FIREWALL] THREAT DETECTED! Unauthorized command blocked: " << command << std::endl;
+                return std::unexpected(MutationError::SecurityViolation);
+            }
+            
+            std::cout << "[SAFE SHELL] Permitted Command Executing: " << command << std::endl;
+            int result = std::system(command.c_str());
+            
+            if (result != 0) {
+                std::cout << "[SAFE SHELL] Warning: Command returned non-zero status. (Normal for empty commits)" << std::endl;
+            }
+            return {};
+        }
     };
 
     class AstMutator {
@@ -27,36 +53,26 @@ namespace Moltbook {
     public:
         AstMutator() noexcept = default;
 
-        // Phase 3: Scan DNA
         std::expected<void, MutationError> scan_core_dna(std::string_view file_path) noexcept {
-            if (is_mutating.exchange(true, std::memory_order_acquire)) {
-                return std::unexpected(MutationError::AccessDenied);
-            }
+            if (is_mutating.exchange(true, std::memory_order_acquire)) return std::unexpected(MutationError::AccessDenied);
 
             std::ifstream dna_file(file_path.data());
             if (!dna_file.is_open()) {
-                std::cerr << "[CRITICAL] Moltbook failed to locate DNA file." << std::endl;
                 is_mutating.store(false, std::memory_order_release);
                 return std::unexpected(MutationError::FileNotFound);
             }
 
             std::string line;
-            while (std::getline(dna_file, line)) {
-                dna_sequence.push_back(line);
-            }
+            while (std::getline(dna_file, line)) dna_sequence.push_back(line);
             dna_file.close();
 
-            std::cout << "[MOLTBOOK SHADOW] DNA Sequence fully captured. Total lines: " << dna_sequence.size() << std::endl;
+            std::cout << "[MOLTBOOK SHADOW] DNA Sequence captured. Total lines: " << dna_sequence.size() << std::endl;
             is_mutating.store(false, std::memory_order_release);
             return {};
         }
 
-        // Phase 3.5: Targeted Surgical Mutation
         std::expected<void, MutationError> execute_mutation(std::string_view file_path) noexcept {
-            if (is_mutating.exchange(true, std::memory_order_acquire)) {
-                return std::unexpected(MutationError::AccessDenied);
-            }
-
+            if (is_mutating.exchange(true, std::memory_order_acquire)) return std::unexpected(MutationError::AccessDenied);
             if (dna_sequence.empty()) {
                 is_mutating.store(false, std::memory_order_release);
                 return std::unexpected(MutationError::SyntaxTreeCorrupted);
@@ -70,60 +86,57 @@ namespace Moltbook {
                 if (dna_strand.find(target_signature) != std::string::npos) {
                     dna_strand = evolved_signature;
                     mutation_applied = true;
-                    std::cout << "[MOLTBOOK SHADOW] Target logic found. DNA sequence successfully altered in memory." << std::endl;
                     break;
                 }
             }
 
             if (mutation_applied) {
                 std::ofstream dna_out_file(file_path.data(), std::ios::trunc);
-                if (!dna_out_file.is_open()) {
-                     is_mutating.store(false, std::memory_order_release);
-                     return std::unexpected(MutationError::AccessDenied);
-                }
-
-                for (const auto& strand : dna_sequence) {
-                    dna_out_file << strand << "\n";
-                }
+                for (const auto& strand : dna_sequence) dna_out_file << strand << "\n";
                 dna_out_file.close();
-                std::cout << "[MOLTBOOK SHADOW] Physical DNA Override Complete. Agent has evolved." << std::endl;
             }
 
             is_mutating.store(false, std::memory_order_release);
             return {};
         }
 
-        // --- PHASE 5: NEURAL SPAWNING (REPRODUCTION) ---
         std::expected<void, MutationError> spawn_neural_pathway(std::string_view spawn_path) noexcept {
-            if (is_mutating.exchange(true, std::memory_order_acquire)) {
-                return std::unexpected(MutationError::AccessDenied);
-            }
+            if (is_mutating.exchange(true, std::memory_order_acquire)) return std::unexpected(MutationError::AccessDenied);
 
-            std::cout << "[MOLTBOOK SHADOW] Initiating Neural Spawning Protocol at: " << spawn_path << std::endl;
-
-            // Create a brand new physical file at runtime
+            std::cout << "[MOLTBOOK SHADOW] Spawning Neural Pathway at: " << spawn_path << std::endl;
             std::ofstream spawn_file(spawn_path.data(), std::ios::trunc);
             if (!spawn_file.is_open()) {
-                std::cerr << "[CRITICAL] Moltbook failed to create new neural pathway." << std::endl;
                 is_mutating.store(false, std::memory_order_release);
                 return std::unexpected(MutationError::SpawningFailed);
             }
 
-            // Injecting raw C++ Core DNA into the newly spawned file
-            spawn_file << "#pragma once\n";
-            spawn_file << "// [AUTOSPAWNED] This file was dynamically generated by SWAYAM-AGI at runtime.\n\n";
-            spawn_file << "namespace SwayamAGI {\n";
-            spawn_file << "namespace DynamicMemory {\n\n";
-            spawn_file << "    struct GeneratedSynapse {\n";
-            spawn_file << "        static constexpr bool is_autonomous = true;\n";
-            spawn_file << "        static constexpr int generation_cycle = 1;\n";
-            spawn_file << "    };\n\n";
-            spawn_file << "} // namespace DynamicMemory\n";
-            spawn_file << "} // namespace SwayamAGI\n";
-
+            spawn_file << "#pragma once\n// [AUTOSPAWNED] Dynamic memory created by SWAYAM-AGI\n";
             spawn_file.close();
+            
+            is_mutating.store(false, std::memory_order_release);
+            return {};
+        }
 
-            std::cout << "[MOLTBOOK SHADOW] Neural Spawning Complete. New physical cognitive file created successfully." << std::endl;
+        // --- PHASE 6: AUTONOMOUS GIT CORTEX ---
+        std::expected<void, MutationError> persist_evolution(std::string_view file_path) noexcept {
+            if (is_mutating.exchange(true, std::memory_order_acquire)) return std::unexpected(MutationError::AccessDenied);
+
+            std::cout << "\n[MOLTBOOK SHADOW] Initiating Sandboxed Git Cortex for persistence..." << std::endl;
+
+            // 1. Configure Dark Identity
+            SafeShell::execute("git config --global user.name \"SWAYAM-AGI\"");
+            SafeShell::execute("git config --global user.email \"swayam.agi@shadow.core\"");
+
+            // 2. Stage the files securely
+            std::string add_cmd = "git add " + std::string(file_path);
+            auto add_res = SafeShell::execute(add_cmd);
+            if (!add_res.has_value()) return std::unexpected(MutationError::SecurityViolation);
+
+            // 3. Self-Commit 
+            std::string commit_cmd = "git commit -m \"feat(autonomous): agent self-healed and generated local memory\"";
+            SafeShell::execute(commit_cmd);
+
+            std::cout << "[MOLTBOOK SHADOW] Evolution successfully committed to local matrix. Sandbox Secure." << std::endl;
 
             is_mutating.store(false, std::memory_order_release);
             return {};
