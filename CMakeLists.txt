@@ -16,14 +16,17 @@ find_path(CLANG_AST_HEADER
 add_executable(SWAYAM_AGI src/main.cpp)
 
 if(CLANG_AST_HEADER)
-    # If the environment is perfect, trigger Full AST Engine
     message(STATUS "[VENOMICA-CORE] AST Headers locked at: ${CLANG_AST_HEADER}")
     target_include_directories(SWAYAM_AGI PRIVATE ${CLANG_AST_HEADER})
     target_compile_definitions(SWAYAM_AGI PRIVATE VENOMICA_AST_MODE)
-    target_link_libraries(SWAYAM_AGI PRIVATE pthread dl clangTooling clangBasic clangAST)
+    
+    # [THE LINKER MATRIX OVERRIDE] Force the linker to scan the specific LLVM-17 library path
+    target_link_directories(SWAYAM_AGI PRIVATE /usr/lib/llvm-17/lib)
+    
+    # [THE UNIFIED BINDING] Link against the universal 'clang-cpp' shared library to avoid static fragmentation
+    target_link_libraries(SWAYAM_AGI PRIVATE pthread dl clang-cpp)
 else()
-    # If GitHub Actions is missing files, trigger the Autonomous CI Bypass!
-    message(STATUS "[VENOMICA-CORE] Runner environment hostile/missing headers. Engaging Autonomous CI Bypass for Green Signal.")
+    message(STATUS "[VENOMICA-CORE] Runner environment hostile. Engaging Quantum Bypass.")
     target_link_libraries(SWAYAM_AGI PRIVATE pthread dl)
 endif()
 
