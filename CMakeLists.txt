@@ -15,12 +15,9 @@ add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Use llvm-config dynamic output or standard static/shared components for LLVM 17
+# Use unified clang-cpp and LLVM components which bundle all sub-libraries natively
 target_link_libraries(SWAYAM_AGI PRIVATE 
-    clangBasic
-    clangAST
-    clangLex
-    clangSupport
+    clang-cpp
     LLVM
     pthread
     dl
