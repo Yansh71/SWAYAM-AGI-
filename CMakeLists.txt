@@ -8,7 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Enable compile_commands.json export for Clang LibTooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# LLVM and Clang paths for Ubuntu runner
 include_directories(/usr/lib/llvm-17/include)
 link_directories(/usr/lib/llvm-17/lib)
 
@@ -16,9 +15,12 @@ add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Use llvm-config style or unified clang-cpp shared library linking to resolve missing static targets
+# Use llvm-config dynamic output or standard static/shared components for LLVM 17
 target_link_libraries(SWAYAM_AGI PRIVATE 
-    clang-cpp
+    clangBasic
+    clangAST
+    clangLex
+    clangSupport
     LLVM
     pthread
     dl
