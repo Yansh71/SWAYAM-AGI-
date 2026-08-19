@@ -48,3 +48,24 @@ namespace Core {
 
 } // namespace Core
 } // namespace SwayamAGI
+// The Ignition Switch: Execution Entry Point
+int main() {
+    std::cout << "[VENOMICA PROTOCOL] Booting SWAYAM-AGI Core..." << std::endl;
+
+    // Initialize the Prime Agent with Titan Defense Alignment
+    SwayamAGI::Core::AgentNode prime_agent;
+    
+    // Activate the agent
+    prime_agent.is_active.store(true, std::memory_order_release);
+
+    // Execute the agent loop
+    auto result = SwayamAGI::Core::execute_agent_loop(prime_agent);
+
+    if (!result.has_value()) {
+        std::cerr << "[CRITICAL] Agent Execution Aborted. Error Code Triggered." << std::endl;
+        return 1;
+    }
+
+    std::cout << "[SUCCESS] SWAYAM-AGI Sovereign Agent Executed Flawlessly." << std::endl;
+    return 0;
+}
