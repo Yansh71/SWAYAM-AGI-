@@ -18,10 +18,15 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Install Compilers & Clang-17 Core
+    - name: Install Compilers & Clang-17 Core (Non-Blocking)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y clang-17 llvm-17-dev libclang-17-dev g++-14 gcc-14
+        echo "Cleaning up any stale dpkg locks..."
+        sudo rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock
+        sudo dpkg --configure -a
+        
+        echo "Installing core compilers safely..."
+        sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clang-17 llvm-17-dev libclang-17-dev g++-14 gcc-14
 
     - name: Configure CMake
       run: |
