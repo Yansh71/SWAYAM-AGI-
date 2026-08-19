@@ -29,5 +29,4 @@ jobs:
 
       - name: Execute Sovereign Binaries
         run: |
-          ./build/swayam_core
-          
+          ./build/SWAYAM_AGI
