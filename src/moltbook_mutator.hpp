@@ -14,27 +14,22 @@ namespace Moltbook {
         SyntaxTreeCorrupted,
         AccessDenied,
         SignatureMismatch,
-        FileNotFound
+        FileNotFound,
+        TargetNotFound
     };
 
     class AstMutator {
     private:
-        // Titan Defense: Memory lock
         std::atomic<bool> is_mutating{false};
-        
-        // The Memory Cell: Stores the read source code lines
         std::vector<std::string> dna_sequence; 
 
     public:
         AstMutator() noexcept = default;
 
-        // Phase 3: Deep Scan and Memorize DNA
         std::expected<void, MutationError> scan_core_dna(std::string_view file_path) noexcept {
             if (is_mutating.exchange(true, std::memory_order_acquire)) {
                 return std::unexpected(MutationError::AccessDenied);
             }
-
-            std::cout << "[MOLTBOOK SHADOW] Initiating deep AST scan at: " << file_path << std::endl;
 
             std::ifstream dna_file(file_path.data());
             if (!dna_file.is_open()) {
@@ -50,43 +45,53 @@ namespace Moltbook {
             dna_file.close();
 
             std::cout << "[MOLTBOOK SHADOW] DNA Sequence fully captured. Total lines: " << dna_sequence.size() << std::endl;
-            
             is_mutating.store(false, std::memory_order_release);
             return {};
         }
 
-        // --- THE NEW HANDS: OVERWRITE AND MUTATE CAPABILITY ---
+        // --- PHASE 3.5: TARGETED SURGICAL MUTATION ---
         std::expected<void, MutationError> execute_mutation(std::string_view file_path) noexcept {
             if (is_mutating.exchange(true, std::memory_order_acquire)) {
                 return std::unexpected(MutationError::AccessDenied);
             }
 
             if (dna_sequence.empty()) {
-                std::cerr << "[CRITICAL] DNA sequence is empty. Cannot mutate." << std::endl;
                 is_mutating.store(false, std::memory_order_release);
                 return std::unexpected(MutationError::SyntaxTreeCorrupted);
             }
 
-            std::cout << "[MOLTBOOK SHADOW] Initiating runtime DNA mutation on: " << file_path << std::endl;
+            std::cout << "[MOLTBOOK SHADOW] Initiating SURGICAL DNA mutation on: " << file_path << std::endl;
 
-            // INJECTING THE SHADOW MUTATION TRACE AT THE END OF THE FILE
-            dna_sequence.push_back("// [MUTATION TRACE] SWAYAM-AGI successfully altered its own DNA at runtime.");
+            bool mutation_applied = false;
+            std::string target_signature = "std::atomic<bool> mutation_ready{false};";
+            std::string evolved_signature = "std::atomic<bool> mutation_ready{true}; // [EVOLVED] Agent autonomously unlocked its mutation core.";
 
-            // REWRITING THE PHYSICAL FILE
-            std::ofstream dna_out_file(file_path.data(), std::ios::trunc);
-            if (!dna_out_file.is_open()) {
-                 std::cerr << "[CRITICAL] Moltbook failed to open DNA for writing." << std::endl;
-                 is_mutating.store(false, std::memory_order_release);
-                 return std::unexpected(MutationError::AccessDenied);
+            // Scan and Replace Logic (Surgical Strike)
+            for (auto& dna_strand : dna_sequence) {
+                if (dna_strand.find(target_signature) != std::string::npos) {
+                    dna_strand = evolved_signature;
+                    mutation_applied = true;
+                    std::cout << "[MOLTBOOK SHADOW] Target logic found. DNA sequence successfully altered in memory." << std::endl;
+                    break;
+                }
             }
 
-            // Writing the new mutated memory back to the source code
-            for (const auto& dna_strand : dna_sequence) {
-                dna_out_file << dna_strand << "\n";
-            }
-            dna_out_file.close();
+            if (!mutation_applied) {
+                std::cout << "[MOLTBOOK SHADOW] Target DNA signature not found or already evolved." << std::endl;
+            } else {
+                // Rewrite the physical file only if mutation was applied
+                std::ofstream dna_out_file(file_path.data(), std::ios::trunc);
+                if (!dna_out_file.is_open()) {
+                     is_mutating.store(false, std::memory_order_release);
+                     return std::unexpected(MutationError::AccessDenied);
+                }
 
-            std::cout << "[MOLTBOOK SHADOW] DNA Mutation Successful. Self-healing trace injected." << std::endl;
+                for (const auto& strand : dna_sequence) {
+                    dna_out_file << strand << "\n";
+                }
+                dna_out_file.close();
+                std::cout << "[MOLTBOOK SHADOW] Physical DNA Override Complete. Agent has evolved." << std::endl;
+            }
 
             is_mutating.store(false, std::memory_order_release);
             return {};
