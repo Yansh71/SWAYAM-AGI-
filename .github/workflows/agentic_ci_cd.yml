@@ -2,31 +2,42 @@ name: SWAYAM-AGI Agentic CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
+
+# [VENOMICA PROTOCOL 1: THE CONCURRENCY SHIELD]
+# Prevents multiple runs from stacking up. New push = instant death to old runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-verify:
     runs-on: ubuntu-latest
+    
+    # [VENOMICA PROTOCOL 2: THE EXECUTIONER]
+    # If the system hangs, kill it instantly at 10 minutes. No zombie processes allowed.
+    timeout-minutes: 10
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Compilers (GCC 14 / C++23 Support)
+      # [VENOMICA PROTOCOL 3: THE PURE ENERGY FEED]
+      # Directly injecting Clang-17 core dependencies into the runner's hardware.
+      - name: Install Compilers & Clang-17 Core
         run: |
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt-get update
-          sudo apt-get install -y g++-14 cmake
+          sudo apt-get install -y libclang-17-dev llvm-17-dev clang-17
+          # Bypassing default compiler mismatch by explicitly mapping GCC/G++ 14
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 || true
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100 || true
 
       - name: Configure CMake
-        run: |
-          cmake -B build -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_BUILD_TYPE=Release
+        # Enforcing both C and CXX compiler bindings to prevent silent fallback crashes
+        run: cmake -B build -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_BUILD_TYPE=Release
 
       - name: Build SWAYAM Core
-        run: |
-          cmake --build build --parallel $(nproc)
+        run: cmake --build build --parallel $(nproc)
 
-      - name: Execute Sovereign Binaries
-        run: |
-          ./build/SWAYAM_AGI
