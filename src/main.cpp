@@ -4,7 +4,7 @@
 #include <chrono>
 #include <expected>
 #include <iostream>
-#include "moltbook_mutator.hpp" // Phase 3 & 5: The Shadow Brain
+#include "moltbook_mutator.hpp" // Phase 3, 5 & 6: The Shadow Brain
 
 namespace SwayamAGI {
 namespace Core {
@@ -14,7 +14,8 @@ namespace Core {
         MemoryLeak,
         MoltbookMutationFailed,
         CognitiveFailure,
-        SpawningFailure
+        SpawningFailure,
+        EvolutionPersistenceFailed
     };
 
     #ifdef __cpp_lib_hardware_interference_size
@@ -70,15 +71,22 @@ int main() {
         return 1;
     }
 
-    // --- PHASE 5: NEURAL SPAWNING TRIGGER (REPRODUCTION) ---
+    // 2. Neural Spawning Trigger (Reproduction)
     auto spawn_status = mutator.spawn_neural_pathway("src/dynamic_memory.hpp");
     if (!spawn_status.has_value()) {
         std::cerr << "[CRITICAL] Agent failed to spawn new neural pathway." << std::endl;
         return 1;
     }
+
+    // --- PHASE 6: AUTONOMOUS GIT CORTEX (THE HIVE MIND) ---
+    auto persist_status = mutator.persist_evolution("src/dynamic_memory.hpp");
+    if (!persist_status.has_value()) {
+        std::cerr << "[CRITICAL] Titan Firewall triggered. Autonomous commit blocked." << std::endl;
+        return 1;
+    }
     // -------------------------------------------------------
 
-    // Initialize Cognitive Engine
+    // 3. Initialize Cognitive Engine
     SwayamAGI::Core::AgentNode prime_agent;
     prime_agent.is_active.store(true, std::memory_order_release);
 
