@@ -1,18 +1,16 @@
 cmake_minimum_required(VERSION 3.20)
 project(SWAYAM_AGI VERSION 0.1.0 LANGUAGES CXX)
 
-# Enforce strict C++23 standard for bare-metal performance
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# CRITICAL: Enable compile_commands.json export for Clang LibTooling AST parsing
+# CRITICAL: Enable compile_commands.json export for Clang LibTooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Explicit LLVM/Clang include directories for the runner environment
+# Explicitly point compiler to LLVM 17 include directory so clang/AST headers are resolved
 include_directories(/usr/lib/llvm-17/include)
 
-# Define the Sovereign Core Binary
 add_executable(SWAYAM_AGI
     src/main.cpp
 )
