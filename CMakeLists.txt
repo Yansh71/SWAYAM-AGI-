@@ -4,23 +4,32 @@ project(SWAYAM_AGI VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Enable compile_commands.json export
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Dynamically locate LLVM/Clang packages using standard config mapping
+find_package(Clang REQUIRED CONFIG)
+find_package(LLVM REQUIRED CONFIG)
 
 add_executable(SWAYAM_AGI
     src/main.cpp
 )
 
-# Explicitly target-level bind LLVM 17 include directories so it forces the compiler to find the headers
-target_include_directories(SWAYAM_AGI PRIVATE 
-    /usr/lib/llvm-17/include
+# Bind dynamic include directories fetched via LLVM/Clang config packages
+target_include_directories(SWAYAM_AGI PRIVATE
+    ${CLANG_INCLUDE_DIRS}
+    ${LLVM_INCLUDE_DIRS}
+    include
 )
 
-# Bind system threading and dynamic utilities
-target_link_libraries(SWAYAM_AGI PRIVATE 
+# Explicitly link required Clang tooling and system core libraries
+target_link_libraries(SWAYAM_AGI PRIVATE
     pthread
     dl
+    clangTooling
+    clangBasic
+    clangASTMatchers
+    clangAST
+    clangLex
 )
 
 enable_testing()
