@@ -1,0 +1,52 @@
+name: EMERGENCY HALT
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type HALT to confirm'
+        required: true
+
+jobs:
+  halt:
+    environment: admin-only
+    if: ${{ github.event.inputs.confirm == 'HALT' }}
+    runs-on: ubuntu-latest
+    env:
+      REPO: Yansh71/SWAYAM-AGI-
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set kill switch
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: gh variable set KILL_SWITCH --body "true" --repo "$REPO"
+
+      - name: Cancel all in-flight runs
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          for id in $(gh run list --status in_progress --json databaseId -q '.[].databaseId' --repo "$REPO"); do
+            gh run cancel "$id" --repo "$REPO"
+          done
+
+      - name: Revoke publisher App installation
+        env:
+          APP_ID: ${{ vars.PUBLISHER_APP_ID }}
+          INSTALLATION_ID: ${{ vars.PUBLISHER_INSTALLATION_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.PUBLISHER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "$APP_PRIVATE_KEY" > /tmp/app-key.pem
+          chmod 600 /tmp/app-key.pem
+          APP_JWT=$(./scripts/generate_app_jwt.sh "$APP_ID" /tmp/app-key.pem)
+          shred -u /tmp/app-key.pem
+          
+          curl -s -f -X DELETE \
+            -H "Authorization: Bearer $APP_JWT" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/app/installations/${INSTALLATION_ID}"
+          
+          echo "Installation ${INSTALLATION_ID} revoked - publisher can no longer push or sign anything."
+
