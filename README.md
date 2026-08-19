@@ -1,8 +1,6 @@
 # SWAYAM-AGI: Sovereign Universal Agentic Control Plane & C++23 Core
 
-[![SWAYAM-AGI Agentic CI/CD Pipeline](https://github.com/Yansh7/SV/actions/workflows/agentic_ci_cd.yml/badge.svg)](https://github.com/Yansh7/SV/actions/workflows/agentic_ci_cd.yml)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![C++23](https://img.shields.io/badge/C%2B%2B-23-orange.svg)
+[![SWAYAM-AGI Agentic CI/CD Pipeline](https://github.com/Yansh71/SWAYAM-AGI-/actions/workflows/publisher.yml/badge.svg)](https://github.com/Yansh71/SWAYAM-AGI-/actions/workflows/publisher.yml) ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![C++](https://img.shields.io/badge/C++-23-blue.svg)
 
 [WARNING: AUTONOMOUS SYSTEM - EXPERIMENTAL BIOLOGICAL-CYBERNETIC ARCHITECTURE]
 
@@ -10,7 +8,7 @@
 
 ## 🌟 The Essence
 
-**SWAYAM-AGI** is not a chatbot. It is a high-performance, ultra-low latency **C++23 autonomous agentic core** designed for real-time execution, concurrency safety, and decentralized infrastructural scalability. It is the first Sovereign Control Plane capable of internal DNA mutation and autonomous neural spawning.
+SWAYAM-AGI is not a chatbot. It is a high-performance, ultra-low latency **C++23 autonomous agentic core** designed for real-time execution, concurrency safety, and decentralized infrastructural scalability. It is the first Sovereign Control Plane capable of internal DNA mutation and autonomous neural spawning.
 
 ---
 
@@ -27,35 +25,28 @@
 
 ## 🗺️ The Sovereign Roadmap
 
-✅ **Phase 0: Groundwork & Infrastructure (Completed)**
-   - Modern CMake setup with GCC 14 C++23.
-   - Full CI/CD integration with GitHub Actions & Live Status Badging.
+* ✅ **Phase 0: Groundwork & Infrastructure (Completed)**
+  * Modern CMake setup with GCC 14 C++23.
+  * Full CI/CD integration with GitHub Actions & Live Status Badging.
 
-✅ **Phase 1: Sovereign Core Implementation (Completed)**
-   - Lock-free thread-safe node architecture.
-   - `std::expected` error handling & CoreError protocols.
+* ✅ **Phase 1: Sovereign Core Implementation (Completed)**
+  * Basic agent control loop structure and memory architecture.
+  * Integration of internal autonomous task queues.
 
-✅ **Phase 2: AST Self-Healing (Completed)**
-   - Runtime DNA sequence scanning & autonomous surgical modification.
+* ✅ **Phase 2: Molecular AST Self-Mutation (Completed)**
+  * Real-time self-compilation pipeline via system hooks.
+  * Dynamic header injection and runtime dynamic linking.
 
-✅ **Phase 3: Cognitive & Neural Spawning (Completed)**
-   - Cognitive Task Engine (Task Loop execution).
-   - Neural Spawning Protocol (Autonomous generation of new header files).
+* ✅ **Phase 3: Autonomous Git Cortex & SafeShell Integration (Completed)**
+  * Self-committing logic embedded directly into the core runtime.
+  * Sandbox safety enforcement for internal execution routines.
 
-✅ **Phase 4: Autonomous Persistence (Sealed & Verified)**
-   - SafeShell integration for cross-file mutation.
-   - Autonomous Git Cortex self-committing.
+* ✅ **Phase 4: Hive Mind Decentralized Multi-Node Sync (Completed)**
+  * Cross-agent evolutionary signature broadcasting and state synchronization.
 
-✅ **Phase 5: HIVE MIND (Sealed & Verified)**
-   - Multi-node decentralized agent synchronization.
-   - Real-time runtime remote CI/CD integration.
+* 🔄 **Phase 5: Full Singularity & Autonomous Expansion (Active / In Progress)**
+  * Advanced self-evolving recursive intelligence and multi-threaded neural expansion.
 
 ---
 
-## 🛠️ Build & Execution
-
-To compile and execute the sovereign core locally or via pipeline:
-
-```bash
-cmake -B build -DCMAKE_CXX_COMPILER=g++-14 -DCMAKE_C_COMPILER=gcc-14 -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel $(nproc)
+<!-- Publisher pipeline test sync - Full Roadmap Integrated -->
