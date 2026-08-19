@@ -1,0 +1,108 @@
+name: Sign and Publish Mutation
+
+on:
+  workflow_run:
+    workflows: ["Sandboxed Mutation Validation"]
+    types: [completed]
+
+concurrency:
+  group: evolution-mutation-SWAYAM-PRIME-01
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      REPO: Yansh71/SWAYAM-AGI-
+      NODE_ID: SWAYAM-PRIME-01
+      
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: mutation-output
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate against path allowlist
+        run: |
+          set -euo pipefail
+          find mutation-output -type f | while read -r f; do
+            case "$f" in
+              mutation-output/src/generated/*) ;;
+              mutation-output/rationale.md) ;;
+              *) echo "REJECTED: $f outside allowlist"; exit 1;;
+            esac
+          done
+
+      - name: Generate App installation token
+        uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.PUBLISHER_APP_PRIVATE_KEY }}
+          owner: Yansh71
+          repositories: "SWAYAM-AGI-"
+
+      - name: Check rate limit (crash-surviving, CAS-protected)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MAX_MUTATIONS_PER_HOUR: "5"
+        run: ./scripts/cas_increment.sh
+
+      - name: AST structural duplicate check
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(mutation-output/src/generated/*.h)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No generated headers in this artifact nothing to check."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            python3 scripts/structural_hash.py "$f"
+          done
+
+      - name: Import signing key (Path B local GPG signing)
+        run: |
+          echo "${{ secrets.PUBLISHER_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          git config --global user.signingkey "${{ vars.PUBLISHER_GPG_KEYID }}"
+          git config --global commit.gpgsign true
+          git config --global user.name "swayam-publisher-bot-yansh"
+          git config --global user.email "swayam-publisher-bot-yansh@users.noreply.github.com"
+
+      - name: Commit to namespaced staging branch and open PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          BRANCH="evolution/staging/${NODE_ID}"
+          
+          git fetch origin "$BRANCH" || true
+          if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+            git checkout -b "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -b "$BRANCH"
+          fi
+          
+          mkdir -p src/generated
+          cp -r mutation-output/src/generated/. src/generated/
+          git add src/generated/
+          git commit -S -m "mutation: ${NODE_ID} $(date -u +%FT%TZ)"
+          
+          # Plain push, no --force
+          git push origin "$BRANCH"
+          
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Mutation from ${NODE_ID} $(date -u +%FT%TZ)" \
+            --body-file mutation-output/rationale.md \
+            || echo "PR already open for this branch skipping create"
