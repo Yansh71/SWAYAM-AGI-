@@ -1,0 +1,25 @@
+name: Swayam Admin Kill-Switch
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for emergency lockdown'
+        required: true
+
+jobs:
+  lockdown:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Full Action Lockdown via API
+        env:
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          echo "[VENOMICA] Initiating Matrix Lockdown. Reason: ${{ github.event.inputs.reason }}"
+          
+          curl -s -X PUT -H "Authorization: token $ADMIN_TOKEN" \
+               -H "Accept: application/vnd.github.v3+json" \
+               -d '{"enabled": false}' \
+               "https://api.github.com/repos/${{ github.repository }}/actions/permissions"
+               
+          echo "[VENOMICA] All GitHub Actions for this repository are now DISABLED."
