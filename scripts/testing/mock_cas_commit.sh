@@ -10,9 +10,15 @@ set -euo pipefail
 REPO="$1"; FILE_PATH="$2"; BRANCH="$3"; TRANSFORM="$4"; shift 4 || true
 
 STATE_DIR="${MOCK_CAS_STATE_DIR:-./.mock_cas_state}"
-mkdir -p "$STATE_DIR"
 
-STATE_FILE="$STATE_DIR/${BRANCH/////_}_${FILE_PATH/////_}"
+# Safe path generation avoiding Bash syntax quirks using 'tr'
+SAFE_BRANCH=$(echo "$BRANCH" | tr '/' '_')
+SAFE_FILE=$(echo "$FILE_PATH" | tr '/' '_')
+
+STATE_FILE="$STATE_DIR/${SAFE_BRANCH}_${SAFE_FILE}"
+
+# Bulletproof directory creation (ensures exact path exists)
+mkdir -p "$(dirname "$STATE_FILE")"
 
 old_content=""
 [[ -f "$STATE_FILE" ]] && old_content="$(cat "$STATE_FILE")"
@@ -24,3 +30,4 @@ fi
 
 printf '%s' "$new_content" > "$STATE_FILE"
 echo "$new_content"
+
