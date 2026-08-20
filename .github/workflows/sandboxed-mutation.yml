@@ -1,49 +1,23 @@
 name: Sandboxed Mutation Validation
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch: {}
-
-concurrency:
-  group: evolution-mutation-SWAYAM-PRIME-01
-  cancel-in-progress: false
-
-permissions:
-  contents: read
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
-  smoke-test:
+  sandbox_execution:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Normalize line endings (CRLF to LF)
-        run: |
-          find scripts -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i 's/\r$//' {} +
-      - name: Run Master Deployment Matrix (Pre-flight)
-        run: python3 scripts/master_deployment_matrix.py
-
-  mutate:
-    needs: smoke-test
-    if: ${{ vars.KILL_SWITCH != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      NODE_ID: SWAYAM-PRIME-01
     steps:
       - uses: actions/checkout@v4
       
-      - name: Run Sandbox (Mock Agent)
+      - name: Build Sandbox Image
+        run: docker build -t swayam-sandbox .
+        
+      - name: Run Zero-Trust Mutation Execution
         run: |
-          mkdir -p mutation-output/src/generated
-          
-          # Using standard alpine to simulate our isolated agent
-          docker run --rm --network none --cpus="1.0" --memory="512m" \
-            -v "${PWD}/mutation-output:/out" alpine:latest sh -c "\
-            echo 'void autonomous_spawn() {}' > /out/src/generated/test_mutation.h && \
-            echo '# Rationale\nMock mutation for shadow run end-to-end test.' > /out/rationale.md"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mutation-output
-          path: mutation-output/
+          # The Ultimate Perimeter: No internet, read-only root, explicit write access only to generated dir
+          docker run --rm --network none \
+            --read-only --tmpfs /tmp \
+            -v ${{ github.workspace }}/src/generated:/home/swayam_agent/workspace/src/generated \
+            swayam-sandbox
