@@ -3,70 +3,28 @@ name: SWAYAM-AGI Agentic CI/CD Pipeline
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+  contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  agentic_core_sync:
+    runs-on: ubuntu-24.04
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Initialize Sovereign Environment & GCC 14 C++23 Toolchain
-      run: |
-        echo "[*] Initializing SWAYAM-AGI Deep Core Environment..."
-        sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          gcc-14 \
-          g++-14 \
-          cmake \
-          git
+      - uses: actions/checkout@v4
+      
+      - name: Initialize Sovereign Environment & GCC 14 C++23 Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14 cmake
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+          
+      - name: Configure CMake
+        run: cmake -B build -S . -DCMAKE_CXX_STANDARD=23
         
-        # Set GCC 14 as default system compiler
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+      - name: Build Titan Core
+        run: cmake --build build --config Release
         
-        gcc --version
-        g++ --version
-        cmake --version
-
-    - name: Configure CMake (Sovereign Titan Core)
-      run: |
-        cmake -B build \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DCMAKE_CXX_COMPILER=g++-14
-
-    - name: Build SWAYAM-AGI Core & Test Suite
-      run: |
-        cmake --build build --parallel $(nproc)
-
-    - name: Execute Autonomous SafeShell & AST Mutation Mock
-      run: |
-        echo "[*] Running Sovereign Sentinel Sandboxed Verification..."
-        mkdir -p mutation_artifacts
-        echo "Autonomous DNA Mutation State: VERIFIED at $(date -u)" > mutation_artifacts/core_dna_state.log
-        echo "SafeShell Execution Matrix: LOCKED & SECURE" >> mutation_artifacts/core_dna_state.log
-
-    - name: Upload Core Mutation Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: swayam-mutation-artifact
-        path: mutation_artifacts/
-
-    - name: Autonomous Git Cortex Synchronization
-      uses: actions/github-script@v7
-      with:
-        script: |
-          console.log("[*] SWAYAM-AGI Autonomous Git Cortex Active.");
-          console.log("[*] Verified Zero-Trust Pipeline Execution for Repository: context locked.");
+      - name: Execute Agentic Cognitive Engine
+        run: ./build/swayam_core
