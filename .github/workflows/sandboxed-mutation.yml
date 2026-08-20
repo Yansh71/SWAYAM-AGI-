@@ -17,6 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Normalize line endings (CRLF to LF)
+        run: |
+          find scripts -type f \( -name "*.sh" -o -name "*.py" \) -exec sed -i 's/\r$//' {} +
       - name: Run Master Deployment Matrix (Pre-flight)
         run: python3 scripts/master_deployment_matrix.py
 
@@ -29,15 +32,12 @@ jobs:
       NODE_ID: SWAYAM-PRIME-01
     steps:
       - uses: actions/checkout@v4
-
       - name: Run Sandbox
         run: |
           mkdir -p mutation-output
           docker run --rm --network none --cpus="1.0" --memory="512m" \
             -v "${PWD}/mutation-output:/out" swayam-agi/moltbook-sandbox:latest
-
       - uses: actions/upload-artifact@v4
         with:
           name: mutation-output
           path: mutation-output/
-
