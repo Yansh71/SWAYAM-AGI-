@@ -5,7 +5,23 @@
 #include <fstream>
 #include <filesystem>
 #include <algorithm>
-#include "error.hpp" // Utilizing our custom Swayam::SecurityViolation
+#include <stdexcept>
+
+// [VENOMICA TITAN-CORE: Self-Healing Include Path Logic]
+// This guarantees the file compiles regardless of CMake path configurations.
+#if __has_include("error.hpp")
+    #include "error.hpp"
+#elif __has_include("../include/error.hpp")
+    #include "../include/error.hpp"
+#else
+    // Fallback cognitive node if error.hpp is entirely unreachable by the compiler
+    namespace Swayam {
+        class SecurityViolation : public std::runtime_error {
+        public:
+            explicit SecurityViolation(const std::string& msg) : std::runtime_error("[VENOMICA SEC-GUARD] " + msg) {}
+        };
+    }
+#endif
 
 class Moltbook {
 public:
