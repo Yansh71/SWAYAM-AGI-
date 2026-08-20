@@ -3,72 +3,75 @@ name: Sign and Publish Mutation
 on:
   workflow_run:
     workflows: ["Sandboxed Mutation Validation"]
-    types: [completed]
+    types:
+      - completed
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: read
-
-concurrency:
-  group: evolution-mutation-SWAYAM-PRIME-01
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   publish:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    env:
-      REPO: Yansh71/SWAYAM-AGI-
-      NODE_ID: SWAYAM-PRIME-01
-      
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Set up job
+        uses: actions/checkout@v4
 
       - name: Fetch raw artifact (no auto-extraction)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.WATCHER_READONLY_TOKEN }}
         run: |
           mkdir -p mutation-output
-          artifact_id=$(gh api "repos/${REPO}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
-            --jq '.artifacts[] | select(.name=="mutation-output") | .id')
-          gh api "repos/${REPO}/actions/artifacts/${artifact_id}/zip" > mutation-output.zip
+          # Download the zip artifact directly to avoid auto-extraction tampering
+          gh api "/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
+            --jq '.artifacts[] | select(.name == "mutation-output") | .archive_download_url' \
+            | xargs -I {} gh api {} > mutation-output.zip
 
       - name: Securely extract artifact against poisoning
         run: |
           python3 scripts/safe_extract.py mutation-output.zip mutation-output/ --allow "src/generated/*.h" "rationale.md"
 
-      - name: Generate App installation token
+      - name: Generate App Installation token
+        id: generate-token
         uses: actions/create-github-app-token@v1
-        id: app-token
         with:
           app-id: ${{ vars.PUBLISHER_APP_ID }}
-          private-key: ${{ secrets.PUBLISHER_APP_PRIVATE_KEY }}
-          owner: Yansh71
-          repositories: "SWAYAM-AGI-"
+          # THE SURGICAL FIX: Exactly matching your secret's name
+          private-key: ${{ secrets.PUBLISHER_APP_KEY }}
 
       - name: Check rate limit (CAS-protected)
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          MAX_MUTATIONS_PER_HOUR: "5"
-        run: ./scripts/cas_increment.sh
+        run: |
+          bash scripts/cas_increment.sh
 
       - name: AST structural duplicate check
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          python3 scripts/structural_hash.py mutation-output/src/generated/*.h
+          python3 scripts/structural_hash.py mutation-output/src/generated/test_mutation.h
 
       - name: Commit and open PR
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          git config user.name "SWAYAM-AGI-BOT"
-          git config user.email "bot@swayam-agi.local"
-          git checkout -b evolution/staging/${NODE_ID}-${{ github.run_id }}
-          cp -r mutation-output/src/generated/. src/generated/ || true
-          git add src/generated/
-          git commit -m "mutation: ${NODE_ID}" || echo "No changes to commit"
-          git push -u origin evolution/staging/${NODE_ID}-${{ github.run_id }}
+          # Set up Git with Bot Persona
+          git config --global user.name "swayam-publisher-bot-yansh[bot]"
+          git config --global user.email "swayam-publisher-bot-yansh[bot]@users.noreply.github.com"
+          
+          # Create an isolated mutation branch
+          BRANCH_NAME="mutation-$(date +%s)"
+          git checkout -b "$BRANCH_NAME"
+          
+          # Inject generated cognitive pathways
+          mkdir -p src/generated
+          cp -r mutation-output/src/generated/* src/generated/ 2>/dev/null || true
+          cp mutation-output/rationale.md ./rationale.md 2>/dev/null || true
+          
+          # Stage, Commit, and Push
+          git add src/generated/ rationale.md
+          git commit -m "Autonomous Mutation: Agentic Spawning Sequence"
+          git push origin "$BRANCH_NAME"
+          
+          # Open the PR back to main
+          gh pr create --title "Autonomous Mutation: Agentic Spawning Sequence" \
+                       --body-file rationale.md \
+                       --base main \
+                       --head "$BRANCH_NAME"
+
