@@ -14,5 +14,8 @@ WORKDIR /home/swayam_agent/workspace
 # Copy files with correct ownership
 COPY --chown=swayam_agent:swayam_agent . .
 
-# Default fallback command. The pipeline will override this during execution.
-CMD ["echo", "[VENOMICA] Sandbox Environment Ready and Standing By."]
+# CRITICAL: this must actually build + execute the candidate mutation and
+# exit non-zero on failure/crash. An "echo ready" CMD makes this container's
+# --network none / --read-only isolation meaningless, because the safety
+# gate downstream (sign-and-open-pr.yml) only checks the exit conclusion.
+CMD ["bash", "scripts/testing/run_sandbox.sh"]
