@@ -32,11 +32,17 @@ jobs:
       NODE_ID: SWAYAM-PRIME-01
     steps:
       - uses: actions/checkout@v4
-      - name: Run Sandbox
+      
+      - name: Run Sandbox (Mock Agent)
         run: |
-          mkdir -p mutation-output
+          mkdir -p mutation-output/src/generated
+          
+          # Using standard alpine to simulate our isolated agent
           docker run --rm --network none --cpus="1.0" --memory="512m" \
-            -v "${PWD}/mutation-output:/out" swayam-agi/moltbook-sandbox:latest
+            -v "${PWD}/mutation-output:/out" alpine:latest sh -c "\
+            echo 'void autonomous_spawn() {}' > /out/src/generated/test_mutation.h && \
+            echo '# Rationale\nMock mutation for shadow run end-to-end test.' > /out/rationale.md"
+
       - uses: actions/upload-artifact@v4
         with:
           name: mutation-output
