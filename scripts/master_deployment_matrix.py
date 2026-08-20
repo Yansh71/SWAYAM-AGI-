@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zipfile
 
-RESULTS = [] # (name, status, detail)
+RESULTS = [] 
 
 def record(name, status, detail=""):
     RESULTS.append((name, status, detail))
@@ -157,14 +157,16 @@ def check_duplicate_registration_contract(repo_root):
         
         first_ok = False
         second_rejected = False
+        first_err = ""
         fake_hash = "deadbeef" * 8
         
         try:
             try:
                 mod.register_hash(fake_hash)
                 first_ok = True
-            except Exception:
-                pass
+            except Exception as e:
+                first_err = str(e)
+                
             try:
                 mod.register_hash(fake_hash)
             except mod.DuplicateError:
@@ -181,7 +183,11 @@ def check_duplicate_registration_contract(repo_root):
         if first_ok and second_rejected:
             record(name, "PASS")
         else:
-            record(name, "FAIL", f"first_registration_ok={first_ok}, duplicate_correctly_rejected={second_rejected}")
+            err_msg = f"first_ok={first_ok}"
+            if not first_ok:
+                err_msg += f" (ERROR: {first_err})"
+            err_msg += f", duplicate_rejected={second_rejected}"
+            record(name, "FAIL", err_msg)
 
 def main():
     parser = argparse.ArgumentParser()
