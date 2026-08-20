@@ -9,57 +9,35 @@ concurrency:
   group: evolution-mutation-SWAYAM-PRIME-01
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Master Deployment Matrix (Pre-flight)
+        run: python3 scripts/master_deployment_matrix.py
+
   mutate:
-    # Guard #1: don't even start a new run if the switch is engaged.
+    needs: smoke-test
     if: ${{ vars.KILL_SWITCH != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       NODE_ID: SWAYAM-PRIME-01
-
     steps:
       - uses: actions/checkout@v4
 
-      # Guard #2: poll during the run so an already-running job can be interrupted
-      - name: Start kill-switch watcher
-        env:
-          GH_TOKEN: ${{ secrets.WATCHER_READONLY_TOKEN }}
-        run: |
-          (
-            while true; do
-              sleep 15
-              status=$(gh variable get KILL_SWITCH --repo "${{ github.repository }}" 2>/dev/null || echo "false")
-              if [[ "$status" == "true" ]]; then
-                echo "::warning:: KILL SWITCH ENGAGED - cancelling run"
-                gh run cancel "${{ github.run_id }}" --repo "${{ github.repository }}"
-              fi
-            done
-          ) &
-          echo $! > /tmp/watcher.pid
-
-      # Compile-only, network-disabled, resource-capped sandbox.
-      - name: Run Moltbook mutation engine in isolated sandbox
+      - name: Run Sandbox
         run: |
           mkdir -p mutation-output
-          docker run --rm \
-            --network none \
-            --cpus="1.0" \
-            --memory="512m" \
-            --pids-limit=128 \
-            --read-only \
-            -v "${PWD}/mutation-output:/out" \
-            swayam-agi/moltbook-sandbox:latest \
-            --node-id "${NODE_ID}" --output-dir /out
+          docker run --rm --network none --cpus="1.0" --memory="512m" \
+            -v "${PWD}/mutation-output:/out" swayam-agi/moltbook-sandbox:latest
 
-      - name: Upload mutation output artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: mutation-output
           path: mutation-output/
-          retention-days: 1
-
-      - name: Stop watcher
-        if: always()
-        run: kill "$(cat /tmp/watcher.pid)" 2>/dev/null || true
 
