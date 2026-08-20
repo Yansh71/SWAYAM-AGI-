@@ -17,12 +17,15 @@ jobs:
       - name: Set up job
         uses: actions/checkout@v4
 
+      - name: Grant execution rights to all shell scripts
+        run: |
+          chmod +x scripts/*.sh scripts/**/*.sh scripts/testing/*.sh scripts/transforms/*.sh 2>/dev/null || true
+
       - name: Fetch raw artifact (no auto-extraction)
         env:
           GITHUB_TOKEN: ${{ secrets.WATCHER_READONLY_TOKEN }}
         run: |
           mkdir -p mutation-output
-          # Download the zip artifact directly to avoid auto-extraction tampering
           gh api "/repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" \
             --jq '.artifacts[] | select(.name == "mutation-output") | .archive_download_url' \
             | xargs -I {} gh api {} > mutation-output.zip
@@ -36,7 +39,6 @@ jobs:
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ vars.PUBLISHER_APP_ID }}
-          # THE SURGICAL FIX: Exactly matching your secret's name
           private-key: ${{ secrets.PUBLISHER_APP_KEY }}
 
       - name: Check rate limit (CAS-protected)
@@ -51,25 +53,20 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          # Set up Git with Bot Persona
           git config --global user.name "swayam-publisher-bot-yansh[bot]"
           git config --global user.email "swayam-publisher-bot-yansh[bot]@users.noreply.github.com"
           
-          # Create an isolated mutation branch
           BRANCH_NAME="mutation-$(date +%s)"
           git checkout -b "$BRANCH_NAME"
           
-          # Inject generated cognitive pathways
           mkdir -p src/generated
           cp -r mutation-output/src/generated/* src/generated/ 2>/dev/null || true
           cp mutation-output/rationale.md ./rationale.md 2>/dev/null || true
           
-          # Stage, Commit, and Push
           git add src/generated/ rationale.md
           git commit -m "Autonomous Mutation: Agentic Spawning Sequence"
           git push origin "$BRANCH_NAME"
           
-          # Open the PR back to main
           gh pr create --title "Autonomous Mutation: Agentic Spawning Sequence" \
                        --body-file rationale.md \
                        --base main \
