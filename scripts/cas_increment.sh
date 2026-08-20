@@ -6,7 +6,7 @@ BRANCH="main"
 
 echo "[VENOMICA] Checking CAS State on remote..."
 
-# Fetch current state, if 404 (Not Found), initialize it dynamically
+# Fetch current state
 STATUS_CODE=$(curl -s -o current_state.json -w "%{http_code}" \
   -H "Authorization: token $GH_TOKEN" \
   -H "Accept: application/vnd.github.v3+json" \
@@ -26,6 +26,28 @@ if [ "$STATUS_CODE" -eq 404 ]; then
 else
   echo "[VENOMICA] State file exists. Proceeding with atomic increment..."
   
-  # Existing CAS increment logic should follow here
-  # (Extract SHA, increment count, and PUT the updated file back)
+  # The Real CAS Increment Logic
+  FILE_SHA=$(jq -r '.sha' current_state.json)
+  CURRENT_CONTENT_BASE64=$(jq -r '.content' current_state.json)
+  
+  # Decode content and parse count
+  CURRENT_COUNT=$(echo "$CURRENT_CONTENT_BASE64" | base64 --decode | jq -r '.count')
+  NEW_COUNT=$((CURRENT_COUNT + 1))
+  
+  echo "[VENOMICA] Current count is $CURRENT_COUNT. Incrementing to $NEW_COUNT..."
+  NEW_CONTENT_PAYLOAD=$(echo -n "{\"count\": $NEW_COUNT, \"last_reset\": \"$(date -u +"%Y-%m-%d")\"}" | base64 -w 0)
+  
+  # Perform the Atomic PUT with SHA constraint
+  UPDATE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
+    -H "Authorization: token $GH_TOKEN" \
+    -H "Accept: application/vnd.github.v3+json" \
+    -d "{\"message\": \"Atomic CAS Increment to $NEW_COUNT\", \"content\": \"$NEW_CONTENT_PAYLOAD\", \"sha\": \"$FILE_SHA\", \"branch\": \"$BRANCH\"}" \
+    "https://api.github.com/repos/$GITHUB_REPOSITORY/contents/$STATE_FILE")
+    
+  if [ "$UPDATE_STATUS" -eq 200 ] || [ "$UPDATE_STATUS" -eq 201 ]; then
+    echo "[VENOMICA] CAS Increment Successful."
+  else
+    echo "[VENOMICA FATAL] CAS Collision or API Error (HTTP $UPDATE_STATUS). Aborting to maintain integrity."
+    exit 1
+  fi
 fi
