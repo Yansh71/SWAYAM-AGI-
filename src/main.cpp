@@ -9,7 +9,7 @@
 
 #include "Moltbook.h"
 #include "core.hpp"   
-#include "GitCortex.h" 
+#include "SwayamGitCortex.hpp"
 #include "NodeRegistry.hpp" 
 #include "CognitiveForge.hpp" 
 #include <iostream>
@@ -18,7 +18,8 @@
 int main() {
     std::cout << "[VENOMICA] SWAYAM-AGI Titan Core Online.\n";
 
-    if (!GitCortex::sync_state()) {
+    // FIX: Calling the securely namespaced GitCortex
+    if (!Swayam::GitCortex::sync_state()) {
         std::cerr << "[VENOMICA WARN] Git state sync returned non-clean status.\n";
     }
 
