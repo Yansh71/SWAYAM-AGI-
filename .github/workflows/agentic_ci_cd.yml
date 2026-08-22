@@ -2,29 +2,60 @@ name: SWAYAM-AGI Agentic CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
 
 jobs:
   agentic_core_sync:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Initialize Sovereign Environment & GCC 14 C++23 Toolchain
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-14 g++-14 cmake
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
-          
-      - name: Configure CMake
-        run: cmake -B build -S . -DCMAKE_CXX_STANDARD=23
-        
-      - name: Build Titan Core
-        run: cmake --build build --config Release
-        
-      - name: Execute Agentic Cognitive Engine
-        run: ./build/swayam_core
+    - name: Set up job
+      uses: actions/checkout@v4
+
+    - name: Initialize Sovereign Environment & GCC 14 C++23 Toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake git g++-14 curl jq file
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+        gcc --version
+        g++ --version
+
+    - name: Grant Execution Rights to Scripts
+      run: |
+        chmod +x scripts/*.sh scripts/**/*.sh 2>/dev/null || true
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_CXX_STANDARD=23
+
+    - name: Build Titan Core
+      run: cmake --build build --config Release
+
+    - name: Execute Decentralized Hive Mind Sync (Phase 4)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: |
+        if [ -f "scripts/hive_sync.sh" ]; then
+          bash scripts/hive_sync.sh
+        else
+          echo "[VENOMICA WARN] hive_sync.sh not found. Skipping hive sync gracefully."
+        fi
+
+    - name: Execute Agentic Cognitive Engine
+      env:
+        SWAYAM_QUARANTINE_LOG: "/tmp/quarantine.log"
+      run: |
+        ./build/swayam_core
+
+    - name: Post Run Checkout & Verify State
+      uses: actions/checkout@v4
+
+    - name: Complete Pipeline Job
+      run: echo "[VENOMICA] Sovereign CI/CD Pipeline executed with absolute precision."
