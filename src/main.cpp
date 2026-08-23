@@ -2,8 +2,11 @@
 #include <fstream>
 #include <string>
 #include <stdexcept>
-// [VENOMICA] Include your other custom headers here (e.g., SwayamGitCortex.hpp, etc.)
+#include <filesystem>
+
+// VENOMICA CORE ARCHITECTURE MODULES
 #include "SafeShell.hpp"
+#include "CognitiveForge.hpp"
 
 int main() {
     // ---------------------------------------------------------
@@ -25,19 +28,22 @@ int main() {
         Swayam::SafeShell::enforce_sandboxed_execution("echo 'Validating core execution boundaries'");
         
         // ---------------------------------------------------------
-        // 3. VENOMICA CORE: AGENTIC SPAWNING SEQUENCE
+        // 3. VENOMICA CORE: AGENTIC SPAWNING SEQUENCE (THE BRAIN)
         // ---------------------------------------------------------
         std::cout << "[VENOMICA] Initiating Cognitive Engine & Mutation Sequence...\n";
         
-        // [VENOMICA] Your actual cortex/mutation logic runs here.
-        // e.g., Swayam::GitCortex::execute_mutation_cycle();
-        // e.g., System execution loops
+        std::string mutation_sandbox_dir = "mutation-output/src/generated";
+        if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir)) {
+            std::cout << "[VENOMICA] Cognitive Forge successfully spawned new logic.\n";
+        } else {
+            throw std::runtime_error("Cognitive Forge failed to generate mutation.");
+        }
         
         std::cout << "[VENOMICA] Core Execution Cycle Complete.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
-        return 1;
+        return 1; // Exit with error code to trigger CI/CD failure if breached
     }
 
     return 0;
