@@ -18,6 +18,18 @@ jobs:
     - name: Set up job
       uses: actions/checkout@v4
 
+    - name: Verify Admin Kill-Switch Status
+      run: |
+        if [ -f "KILL_SWITCH.lock" ]; then
+          echo "[VENOMICA FATAL] System Override Detected! KILL_SWITCH.lock is ACTIVE."
+          echo "Reason for Lockdown:"
+          cat KILL_SWITCH.lock
+          echo "[VENOMICA] Halting all Agentic Spawning sequences immediately."
+          exit 1
+        else
+          echo "[VENOMICA] Perimeter CLEAR. No Kill-Switch detected. Proceeding to Cognitive Spawning."
+        fi
+
     - name: Initialize Sovereign Environment & GCC 14 C++23 Toolchain
       run: |
         sudo apt-get update
