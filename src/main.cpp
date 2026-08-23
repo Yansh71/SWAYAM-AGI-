@@ -5,13 +5,12 @@
 #include <filesystem>
 
 // VENOMICA CORE ARCHITECTURE MODULES
-// Note: SafeShell.hpp is permanently removed. No cosmetic shell executions.
+// SafeShell is permanently purged.
+// OutputEmitter is inherently resolved via CognitiveForge.hpp
 #include "CognitiveForge.hpp"
 #include "HeuristicAnalyzer.hpp"
 #include "MutationRunner.hpp"
 #include "QuarantineRegistry.hpp"
-// Assuming OutputEmitter is explicitly included here or inside CognitiveForge
-#include "OutputEmitter.hpp" 
 
 int main() {
     // ---------------------------------------------------------
@@ -33,8 +32,6 @@ int main() {
     std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
 
     try {
-        // SafeShell cosmetic check removed. Matrix relies on OS limits and AST heuristics.
-
         std::cout << "[VENOMICA] Initiating Quantum Cognitive Engine...\n";
         
         if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir, meta_dir)) {
