@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Build Sandbox Image
+      - name: Build Immutable Sandbox Vault
         run: docker build -t swayam-sandbox .
         
       - name: Run Zero-Trust Mutation Execution
@@ -25,35 +25,20 @@ jobs:
           mkdir -p mutation-output/src/generated
           mkdir -p mutation-output/meta
           
-          # [ZERO-DAY FIX] Eliminate Cross-Boundary Permission Denial
+          # Eliminate Cross-Boundary Permission Denial
           chmod -R 777 mutation-output/
           
           echo "[VENOMICA] Initiating Sandboxed Cognitive Engine..."
           
-          # The Ultimate Perimeter: Network isolated, read-only root, explicit write access ONLY to mounts
+          # THE SNIPER SHOT: 
+          # No bash, no 'find', no script indirection. We just run the Vault.
+          # The Dockerfile's hardcoded ENTRYPOINT guarantees swayam_supervisor executes.
           docker run --rm --network none \
             --read-only --tmpfs /tmp \
             --memory=512m --cpus=1.0 --pids-limit=64 \
             -v ${{ github.workspace }}/mutation-output/src/generated:/home/swayam_agent/workspace/src/generated:rw \
             -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta:rw \
-            --entrypoint /bin/bash \
-            swayam-sandbox -c '
-              echo "[DOCKER-INTERNAL] Hunting for Swayam Binary globally...";
-              
-              # [THE OMNIPRESENT HUNTER] Scan the ENTIRE container filesystem (/)
-              # Looks for either swayam_supervisor OR swayam_core, ignoring permission errors
-              CORE_BIN=$(find / -type f \( -name "swayam_supervisor" -o -name "swayam_core" \) -executable 2>/dev/null | head -n 1);
-              
-              if [ -z "$CORE_BIN" ]; then
-                echo "[FATAL] Neither swayam_supervisor nor swayam_core binary found ANYWHERE in the container!";
-                echo "[DEBUG] Dumping container root to trace Dockerfile structure:";
-                ls -la /;
-                exit 1;
-              fi
-              
-              echo "[DOCKER-INTERNAL] Target Locked: Executing $CORE_BIN";
-              exec "$CORE_BIN"
-            '
+            swayam-sandbox
 
           echo "[VENOMICA] Execution terminated. Analyzing output state..."
 
@@ -68,7 +53,7 @@ jobs:
           case "$OUTCOME" in
             published)
               if [ ! -f mutation-output/meta/rationale.md ]; then
-                echo "[FATAL] Published outcome missing rationale. Refusing to stage ghost PR."
+                echo "[FATAL] Published outcome missing rationale. Refusing to stage PR."
                 exit 1
               fi
               mv mutation-output/meta/rationale.md mutation-output/rationale.md
