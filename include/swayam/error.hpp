@@ -1,16 +1,29 @@
 #ifndef SWAYAM_ERROR_HPP
 #define SWAYAM_ERROR_HPP
 
-#include <cstdint>
+#include <stdexcept>
+#include <string>
 
-namespace swayam {
+namespace Swayam {
 
-enum class CoreError : std::uint32_t {
-    Success = 0x0,
-    Busy = 0x403,
-    TaskThrew = 0x500
+// [VENOMICA EXCEPTION KERNEL]
+// Upgraded from static enums to a dynamic architectural fault handler.
+class CoreFault : public std::runtime_error {
+private:
+    int kernel_exit_code;
+
+public:
+    // Captures the exact forensic state of the anomaly
+    CoreFault(const std::string& forensic_message, int exit_code = 1) 
+        : std::runtime_error("[VENOMICA KERNEL FAULT] " + forensic_message), 
+          kernel_exit_code(exit_code) {}
+    
+    // Allows the QuarantineRegistry to read the exact kernel block code
+    int get_exit_code() const { 
+        return kernel_exit_code; 
+    }
 };
 
-} // namespace swayam
+} // namespace Swayam
 
 #endif // SWAYAM_ERROR_HPP
