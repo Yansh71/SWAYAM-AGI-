@@ -29,9 +29,10 @@ int main() {
     std::string workspace_root = "/home/swayam_agent/workspace";
     std::string mutation_sandbox_dir = workspace_root + "/src/generated";
     std::string meta_dir = workspace_root + "/meta";
-    std::string sync_network_dir = workspace_root + "/sync_network"; // Decentralized sync path
     
-    // [MYTHOS ALIGNMENT] Target is now .h to match the run_sandbox.sh driver contract
+    // [MYTHOS FIX] The root workspace is a Read-Only container filesystem!
+    // We explicitly route our neural ledgers to the writable 'meta' telemetry directory.
+    std::string sync_network_dir = meta_dir + "/sync_network"; 
     std::string target_file = mutation_sandbox_dir + "/test_mutation.h"; 
 
     try {
@@ -40,8 +41,8 @@ int main() {
         // ---------------------------------------------------------
         Swayam::HiveMind::awakenNode("VENOMICA-PRIME-NODE");
         
-        // Initialize Immutable Genetic Ledger
-        Swayam::Moltbook collective_ledger(workspace_root);
+        // Initialize Immutable Genetic Ledger inside the writable meta_dir
+        Swayam::Moltbook collective_ledger(meta_dir);
         
         // Sync with peer nodes before attempting any mutation
         Swayam::HiveMind::synchronize_collective(collective_ledger, sync_network_dir);
@@ -95,7 +96,7 @@ int main() {
         
         // Record the failure to the ledger so HiveMind remembers never to retry this
         try {
-            Swayam::Moltbook emergency_ledger(workspace_root);
+            Swayam::Moltbook emergency_ledger(meta_dir);
             emergency_ledger.record_mutation(target_file, "QUARANTINED");
         } catch (...) {
             std::cerr << "[VENOMICA] HiveMind ledger lock failed during emergency state.\n";
