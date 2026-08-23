@@ -80,13 +80,14 @@ public:
         if (relative_name.front() == '-')
             throw std::invalid_argument("option-like artifact name");
 
+        // Use O_NOFOLLOW to prevent symlink traversal attacks at descriptor level
         const int fd = ::openat(trusted_dir_fd, relative_name.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        if (fd < 0) throw std::system_error(errno, std::generic_category(), "openat");
+        if (fd < 0) throw std::runtime_error("failed to open artifact via openat");
 
         UniqueFd artifact_fd(fd);
         struct stat st{};
         if (::fstat(artifact_fd.get(), &st) != 0)
-            throw std::system_error(errno, std::generic_category(), "fstat");
+            throw std::runtime_error("failed to retrieve artifact metadata via fstat");
 
         if (!S_ISREG(st.st_mode)) throw std::runtime_error("artifact is not a regular file");
         if (st.st_size < 0) throw std::runtime_error("negative artifact size");
@@ -96,7 +97,7 @@ public:
         if (size > MAX_SOURCE_SIZE) throw std::runtime_error("artifact exceeds maximum source size");
 
         if (::lseek(artifact_fd.get(), 0, SEEK_SET) == -1)
-            throw std::system_error(errno, std::generic_category(), "lseek");
+            throw std::runtime_error("failed to lseek artifact descriptor");
 
         constexpr std::size_t BUFFER_SIZE = 64 * 1024;
         std::vector<std::uint8_t> buffer(BUFFER_SIZE);
@@ -108,23 +109,23 @@ public:
             if (n == 0) break;
             if (n < 0) {
                 if (errno == EINTR) continue;
-                throw std::system_error(errno, std::generic_category(), "read");
+                throw std::runtime_error("failed to read artifact data");
             }
             total += static_cast<std::uint64_t>(n);
             if (total > MAX_SOURCE_SIZE) throw std::runtime_error("artifact grew beyond maximum size");
             hash = fnv1a_update(hash, buffer.data(), static_cast<std::size_t>(n));
         }
 
-        if (total != size) throw std::runtime_error("artifact changed while being read");
+        if (total != size) throw std::runtime_error("artifact size mismatch during read phase");
 
         if (::lseek(artifact_fd.get(), 0, SEEK_SET) == -1)
-            throw std::system_error(errno, std::generic_category(), "lseek");
+            throw std::runtime_error("failed to reset artifact descriptor lseek");
 
         const int flags = ::fcntl(artifact_fd.get(), F_GETFD);
-        if (flags == -1) throw std::system_error(errno, std::generic_category(), "fcntl(F_GETFD)");
+        if (flags == -1) throw std::runtime_error("failed to get descriptor flags via fcntl");
 
         if (::fcntl(artifact_fd.get(), F_SETFD, flags & ~FD_CLOEXEC) == -1)
-            throw std::system_error(errno, std::generic_category(), "fcntl(F_SETFD)");
+            throw std::runtime_error("failed to clear close-on-exec flag via fcntl");
 
         return StagedArtifact{
             std::move(artifact_fd),
