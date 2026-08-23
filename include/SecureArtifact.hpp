@@ -3,19 +3,19 @@
 
 #include <cerrno>
 #include <cstdint>
+#include <fcntl.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 namespace Swayam {
 
 /*
- * Small RAII wrapper for a POSIX file descriptor.
+ * RAII wrapper for a POSIX file descriptor.
  */
 class UniqueFd {
 private:
@@ -71,10 +71,18 @@ public:
 };
 
 
+/*
+ * Immutable descriptor-backed artifact.
+ *
+ * The descriptor remains open for the lifetime of this object.
+ */
 struct StagedArtifact {
     UniqueFd descriptor;
+
     std::uint64_t byte_count{0};
+
     std::uint64_t content_hash{0};
+
     std::string proc_fd_path;
 };
 
@@ -87,6 +95,9 @@ private:
     static constexpr std::uint64_t FNV_PRIME =
         1099511628211ULL;
 
+    /*
+     * Maximum source artifact accepted by this primitive.
+     */
     static constexpr std::uint64_t MAX_ARTIFACT_SIZE =
         8ULL * 1024ULL * 1024ULL;
 
@@ -94,6 +105,20 @@ private:
         64ULL * 1024ULL;
 
 
+    /*
+     * Only a single filename component is accepted.
+     *
+     * This intentionally rejects:
+     *
+     *   .
+     *   ..
+     *   /
+     *   ../
+     *   absolute paths
+     *   nested paths
+     *
+     * The trusted directory is supplied separately as dir_fd.
+     */
     static bool valid_component(
         const std::string& name)
     {
@@ -101,7 +126,9 @@ private:
             return false;
         }
 
-        if (name == "." || name == "..") {
+        if (name == "." ||
+            name == "..")
+        {
             return false;
         }
 
@@ -109,11 +136,7 @@ private:
             return false;
         }
 
-        for (const unsigned char c :
-             std::vector<unsigned char>(
-                 name.begin(),
-                 name.end()))
-        {
+        for (const unsigned char c : name) {
             const bool permitted =
                 (c >= 'a' && c <= 'z') ||
                 (c >= 'A' && c <= 'Z') ||
@@ -131,12 +154,18 @@ private:
     }
 
 
-    static std::uint64_t hash_update(
+    /*
+     * FNV-1a update.
+     */
+    static std::uint64_t update_hash(
         std::uint64_t hash,
         const std::uint8_t* data,
         std::size_t length)
     {
-        for (std::size_t i = 0; i < length; ++i) {
+        for (std::size_t i = 0;
+             i < length;
+             ++i)
+        {
             hash ^= data[i];
             hash *= FNV_PRIME;
         }
@@ -145,29 +174,50 @@ private:
     }
 
 
-    static void rewind_descriptor(int fd) {
-        if (::lseek(fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+    /*
+     * Reposition the descriptor at the beginning.
+     */
+    static void rewind_descriptor(
+        int fd)
+    {
+        if (::lseek(
+                fd,
+                static_cast<off_t>(0),
+                SEEK_SET) ==
+            static_cast<off_t>(-1))
+        {
             throw std::runtime_error(
                 "artifact seek failed");
         }
     }
 
 
-    static void make_inheritable(int fd) {
-        const int flags = ::fcntl(fd, F_GETFD);
+    /*
+     * Remove close-on-exec after validation.
+     *
+     * The compiler process must inherit the descriptor so that
+     * /proc/self/fd/N remains usable after exec.
+     */
+    static void make_inheritable(
+        int fd)
+    {
+        const int flags =
+            ::fcntl(
+                fd,
+                F_GETFD);
 
         if (flags < 0) {
             throw std::runtime_error(
                 "descriptor flag query failed");
         }
 
-        const int new_flags =
+        const int updated =
             flags & ~FD_CLOEXEC;
 
         if (::fcntl(
                 fd,
                 F_SETFD,
-                new_flags) < 0)
+                updated) < 0)
         {
             throw std::runtime_error(
                 "descriptor inheritance setup failed");
@@ -175,12 +225,52 @@ private:
     }
 
 
-public:
     /*
-     * dir_fd must identify a trusted directory opened by the caller.
+     * Verify that the descriptor still represents a regular file.
+     */
+    static struct stat read_metadata(
+        int fd)
+    {
+        struct stat metadata{};
+
+        if (::fstat(
+                fd,
+                &metadata) != 0)
+        {
+            throw std::runtime_error(
+                "artifact metadata query failed");
+        }
+
+        if (!S_ISREG(metadata.st_mode)) {
+            throw std::runtime_error(
+                "artifact is not a regular file");
+        }
+
+        if (metadata.st_size < 0) {
+            throw std::runtime_error(
+                "invalid artifact size");
+        }
+
+        return metadata;
+    }
+
+
+public:
+    SecureArtifact() = delete;
+
+
+    /*
+     * Open and hash an artifact relative to a trusted directory
+     * descriptor.
      *
-     * The supplied name is deliberately restricted to one directory
-     * component. This eliminates traversal semantics from this primitive.
+     * Security properties:
+     *
+     * 1. No pathname traversal is accepted by this primitive.
+     * 2. Resolution is relative to dir_fd.
+     * 3. O_NOFOLLOW prevents the final component from being a symlink.
+     * 4. The opened descriptor, not the pathname, is hashed.
+     * 5. The descriptor remains open after validation.
+     * 6. /proc/self/fd/N identifies that descriptor.
      */
     [[nodiscard]]
     static StagedArtifact open_and_hash(
@@ -198,6 +288,12 @@ public:
         }
 
 
+        /*
+         * O_CLOEXEC is initially enabled while validation is performed.
+         *
+         * It is explicitly removed only after the descriptor has been
+         * completely validated and hashed.
+         */
         const int raw_fd =
             ::openat(
                 dir_fd,
@@ -214,40 +310,32 @@ public:
         UniqueFd descriptor(raw_fd);
 
 
-        struct stat metadata{};
-
-        if (::fstat(
-                descriptor.get(),
-                &metadata) != 0)
-        {
-            throw std::runtime_error(
-                "artifact metadata query failed");
-        }
+        /*
+         * First metadata snapshot.
+         */
+        const struct stat initial =
+            read_metadata(
+                descriptor.get());
 
 
-        if (!S_ISREG(metadata.st_mode)) {
-            throw std::runtime_error(
-                "artifact is not a regular file");
-        }
-
-
-        if (metadata.st_size < 0) {
-            throw std::runtime_error(
-                "invalid artifact size");
-        }
-
-
-        const auto expected_size =
+        const std::uint64_t expected_size =
             static_cast<std::uint64_t>(
-                metadata.st_size);
+                initial.st_size);
 
-        if (expected_size > MAX_ARTIFACT_SIZE) {
+
+        if (expected_size >
+            MAX_ARTIFACT_SIZE)
+        {
             throw std::runtime_error(
                 "artifact exceeds configured size limit");
         }
 
 
-        rewind_descriptor(descriptor.get());
+        /*
+         * Hash exactly what is read through the descriptor.
+         */
+        rewind_descriptor(
+            descriptor.get());
 
 
         std::vector<std::uint8_t> buffer(
@@ -266,9 +354,11 @@ public:
                     buffer.data(),
                     buffer.size());
 
+
             if (count == 0) {
                 break;
             }
+
 
             if (count < 0) {
                 if (errno == EINTR) {
@@ -281,7 +371,9 @@ public:
 
 
             const auto current =
-                static_cast<std::uint64_t>(count);
+                static_cast<std::uint64_t>(
+                    count);
+
 
             if (current >
                 MAX_ARTIFACT_SIZE - total)
@@ -290,43 +382,80 @@ public:
                     "artifact exceeded size limit");
             }
 
+
             total += current;
 
-            hash = hash_update(
-                hash,
-                buffer.data(),
-                static_cast<std::size_t>(count));
+
+            hash =
+                update_hash(
+                    hash,
+                    buffer.data(),
+                    static_cast<std::size_t>(
+                        count));
         }
 
 
         /*
-         * The descriptor was opened before hashing and remains authoritative.
+         * The number of bytes actually consumed must agree with the
+         * initial descriptor metadata.
          */
         if (total != expected_size) {
             throw std::runtime_error(
-                "artifact length changed");
+                "artifact length invariant failed");
         }
 
 
-        rewind_descriptor(descriptor.get());
+        /*
+         * Second metadata snapshot.
+         *
+         * This detects ordinary changes to the descriptor's underlying
+         * inode while the artifact was being consumed.
+         */
+        const struct stat final =
+            read_metadata(
+                descriptor.get());
+
+
+        if (final.st_dev != initial.st_dev ||
+            final.st_ino != initial.st_ino)
+        {
+            throw std::runtime_error(
+                "artifact identity changed");
+        }
+
+
+        if (final.st_size != initial.st_size) {
+            throw std::runtime_error(
+                "artifact size changed");
+        }
+
 
         /*
-         * The compiler can consume this descriptor through
-         * /proc/self/fd/<N>.
+         * Reset the descriptor so the subsequent consumer starts from
+         * byte zero.
          */
-        make_inheritable(descriptor.get());
+        rewind_descriptor(
+            descriptor.get());
 
 
-        const std::string proc_path =
+        /*
+         * The descriptor must survive exec().
+         */
+        make_inheritable(
+            descriptor.get());
+
+
+        const std::string proc_fd_path =
             "/proc/self/fd/" +
-            std::to_string(descriptor.get());
+            std::to_string(
+                descriptor.get());
 
 
         return StagedArtifact{
             std::move(descriptor),
             total,
             hash,
-            proc_path
+            proc_fd_path
         };
     }
 };
