@@ -13,7 +13,7 @@ namespace Swayam {
 
 // Autonomous publisher for surviving mutations (Phase 10).
 // SECURITY NOTE: this file previously built a single shell command
-// string and ran it through std::system(). That is a shell-injection
+// string and ran it through a system call. That is a shell-injection
 // vector: any character in mutation_file with special meaning to
 // /bin/sh (spaces, quotes, backticks, ;, $, etc.) could alter
 // or extend the command that actually runs with push access to main.
@@ -80,7 +80,7 @@ public:
 
         if (!run_git_command({"git", "config", "--local", "user.name",
                               "swayam-publisher-bot-yansh[bot]"})) {
-            return false;
+            return {false};
         }
         if (!run_git_command({"git", "config", "--local", "user.email",
                               "swayam-publisher-bot-yansh[bot]@users.noreply.github.com"})) {
