@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Build Immutable Sandbox Vault
+      - name: Build AGI Sandbox Vault
         run: docker build -t swayam-sandbox .
         
       - name: Run Zero-Trust Mutation Execution
@@ -24,20 +24,20 @@ jobs:
           echo "[VENOMICA] Provisioning host boundary directories..."
           mkdir -p mutation-output/src/generated
           mkdir -p mutation-output/meta
+          mkdir -p mutation-output/quarantine
           
-          # Eliminate Cross-Boundary Permission Denial
+          # Eliminate Cross-Boundary Permission Denial across ALL output paths
           chmod -R 777 mutation-output/
           
           echo "[VENOMICA] Initiating Sandboxed Cognitive Engine..."
           
-          # THE SNIPER SHOT: 
-          # No bash, no 'find', no script indirection. We just run the Vault.
-          # The Dockerfile's hardcoded ENTRYPOINT guarantees swayam_supervisor executes.
+          # The Sniper Shot: Executing the AGI with compiler access but STRICT OS limits
           docker run --rm --network none \
             --read-only --tmpfs /tmp \
             --memory=512m --cpus=1.0 --pids-limit=64 \
             -v ${{ github.workspace }}/mutation-output/src/generated:/home/swayam_agent/workspace/src/generated:rw \
             -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta:rw \
+            -v ${{ github.workspace }}/mutation-output/quarantine:/home/swayam_agent/workspace/quarantine:rw \
             swayam-sandbox
 
           echo "[VENOMICA] Execution terminated. Analyzing output state..."
@@ -47,7 +47,6 @@ jobs:
             exit 1
           fi
 
-          # Explicit Signal Router via jq
           OUTCOME=$(jq -r .outcome mutation-output/meta/status.json)
           
           case "$OUTCOME" in
