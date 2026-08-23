@@ -1,0 +1,34 @@
+# SWAYAM CODEOWNERS
+# Forces explicit human review on every file that controls the pipeline
+# itself. A mutation that escaped Moltbook's path boundary and touched
+# any of these paths would require @Yansh71 to approve the PR before
+# it could be merged - preventing autonomous pipeline self-modification.
+#
+# Place this file at: .github/CODEOWNERS
+
+# Pipeline control files must never be touched by autonomous mutations
+.github/workflows/         @Yansh71
+.github/CODEOWNERS         @Yansh71
+
+# Core security components
+include/core.hpp           @Yansh71
+include/GitCortex.h        @Yansh71
+include/NodeRegistry.hpp   @Yansh71
+include/CognitiveForge.hpp @Yansh71
+src/Moltbook.h             @Yansh71
+include/SafeShell.hpp      @Yansh71
+include/HeuristicAnalyzer.hpp @Yansh71
+include/MutationRunner.hpp @Yansh71
+include/QuarantineRegistry.hpp @Yansh71
+include/SwayamGitCortex.hpp @Yansh71
+
+# Build configuration
+CMakeLists.txt             @Yansh71
+Dockerfile                 @Yansh71
+
+# Scripts - especially the ones that touch the GitHub API
+scripts/                   @Yansh71
+
+# Audit and documentation
+SECURITY_AUDIT.md          @Yansh71
+README.md                  @Yansh71
