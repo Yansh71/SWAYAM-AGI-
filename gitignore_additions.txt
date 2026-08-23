@@ -1,0 +1,38 @@
+# SWAYAM .gitignore additions
+# Add these to your existing .gitignore
+# -----------------------------------------------
+
+# Kill switch — must NEVER be committed to the repo tree.
+# If committed, every CI checkout inherits it and the switch
+# either halts every run or is permanently ignored.
+# It must only materialize locally or via the admin workflow.
+KILL_SWITCH.lock
+
+# Quarantine log — ephemeral per run, persisted via Hive Mind.
+# Committing it would conflict with atomic rename() writes in CI.
+quarantine.log
+quarantine.log.lock
+quarantine.log.v1-legacy.bak
+
+# Temp files from atomic quarantine write pattern (PID-namespaced).
+# Orphaned if the process is SIGKILL'd mid-write. Safe to delete.
+quarantine.log.tmp.*
+
+# Node seed — derived from hostname, should not be tracked.
+.swayam_node_seed
+
+# Build artifacts
+build/
+*.o
+swayam_core
+swayam_supervisor
+
+# Sandbox artifacts
+/tmp/swayam_forge/
+/tmp/swayam_sandbox/
+/tmp/swayam_hive/
+
+# Hive sync peer files (downloaded to /tmp by hive_sync.sh)
+# These are ephemeral — tracking them would pollute history.
+peer_*.csv
+node_export_*.csv
