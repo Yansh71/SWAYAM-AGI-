@@ -1,9 +1,12 @@
 name: Sandboxed Mutation Validation
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: read
 
 jobs:
   sandbox_execution:
@@ -16,8 +19,58 @@ jobs:
         
       - name: Run Zero-Trust Mutation Execution
         run: |
-          # The Ultimate Perimeter: No internet, read-only root, explicit write access only to generated dir
+          set -euo pipefail
+          
+          mkdir -p mutation-output/src/generated
+          mkdir -p mutation-output/meta
+          
+          echo "[VENOMICA] Initiating Sandboxed Cognitive Engine..."
+          
+          # The Ultimate Perimeter: Network isolated, read-only, tmpfs, strictly resource bounded
           docker run --rm --network none \
             --read-only --tmpfs /tmp \
-            -v ${{ github.workspace }}/src/generated:/home/swayam_agent/workspace/src/generated \
+            --memory=512m --cpus=1.0 --pids-limit=64 \
+            -v ${{ github.workspace }}/mutation-output/src/generated:/home/swayam_agent/workspace/src/generated \
+            -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta \
             swayam-sandbox
+
+          echo "[VENOMICA] Execution terminated. Analyzing output state..."
+
+          if [ ! -f mutation-output/meta/status.json ]; then
+            echo "[FATAL] Engine produced no status signal — cannot distinguish crash from quarantine."
+            exit 1
+          fi
+
+          # Explicit Signal Router via jq
+          OUTCOME=$(jq -r .outcome mutation-output/meta/status.json)
+          
+          case "$OUTCOME" in
+            published)
+              if [ ! -f mutation-output/meta/rationale.md ]; then
+                echo "[FATAL] Published outcome missing rationale. Refusing to stage ghost PR."
+                exit 1
+              fi
+              # Promote rationale to artifact root for the downstream publisher
+              mv mutation-output/meta/rationale.md mutation-output/rationale.md
+              echo "[VENOMICA] Mutation verified and rationale staged for PR."
+              ;;
+            quarantined)
+              REASON=$(jq -r .reason mutation-output/meta/status.json || echo "Unknown threat")
+              echo "[VENOMICA] Mutation safely quarantined at edge. Reason: $REASON"
+              echo "Nothing to publish this cycle."
+              exit 0
+              ;;
+            *)
+              echo "[FATAL] Unrecognized cognitive outcome: $OUTCOME"
+              exit 1
+              ;;
+          esac
+          
+      - name: Upload Mutation Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-output
+          path: |
+            mutation-output/src/
+            mutation-output/rationale.md
+          if-no-files-found: ignore
