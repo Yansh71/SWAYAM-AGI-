@@ -15,7 +15,6 @@ namespace Swayam {
 
 class MutationRunner {
 private:
-    // Core isolated command execution mechanism (Zero Shell)
     static int run_command_safe(const std::vector<std::string>& args) {
         std::vector<char*> argv;
         argv.reserve(args.size() + 1);
@@ -30,7 +29,6 @@ private:
             return -1;
         }
         if (pid == 0) {
-            // Child process: Direct exec, no shell interpolation
             execvp(argv[0], argv.data());
             _exit(127); // Force strict exit if execvp fails
         }
@@ -43,13 +41,11 @@ private:
     }
 
 public:
-    // Dynamically compiles and executes the forged C++ mutation
     static bool compile_and_execute(const std::string& source_header, const std::string& output_bin) {
         std::cout << "[VENOMICA-RUNNER] Initiating dynamic compilation of neural payload...\n";
 
         // ---------------------------------------------------------
         // THE PHANTOM DRIVER FORGE
-        // Generates a temporary C++ runner to execute the header payload
         // ---------------------------------------------------------
         std::filesystem::path header_path(source_header);
         std::string driver_path = header_path.parent_path().string() + "/mutation_driver.cpp";
@@ -60,7 +56,6 @@ public:
             return false;
         }
         
-        // Write the execution contract
         driver_file << "#include \"" << header_path.filename().string() << "\"\n";
         driver_file << "int main() {\n";
         driver_file << "    SwayamMutation::execute_payload();\n";
@@ -68,12 +63,9 @@ public:
         driver_file << "}\n";
         driver_file.close();
 
-        // Command to compile the generated DRIVER (not just the header)
         std::vector<std::string> compile_cmd = {"g++", "-std=c++23", driver_path, "-o", output_bin};
-        
         int compile_status = run_command_safe(compile_cmd);
         
-        // Burn the bridge (Clean up the temporary driver)
         std::filesystem::remove(driver_path);
 
         if (compile_status != 0) {
@@ -83,8 +75,12 @@ public:
 
         std::cout << "[VENOMICA-RUNNER] Compilation successful. Engaging dynamic isolated execution...\n";
 
-        // Execute the newly created binary safely
-        std::vector<std::string> run_cmd = {"./" + output_bin};
+        // ---------------------------------------------------------
+        // [MYTHOS FIX] ABSOLUTE PATH EXECUTION
+        // Output bin is already an absolute path from workspace root.
+        // Prepending "./" creates a relative path illusion and crashes execvp.
+        // ---------------------------------------------------------
+        std::vector<std::string> run_cmd = {output_bin};
         int run_status = run_command_safe(run_cmd);
 
         if (run_status != 0) {
