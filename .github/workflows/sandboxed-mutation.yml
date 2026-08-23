@@ -26,7 +26,6 @@ jobs:
           mkdir -p mutation-output/meta
           
           # [ZERO-DAY FIX] Eliminate Cross-Boundary Permission Denial
-          # Ensures the internal non-root Docker user can write files back to the GitHub host
           chmod -R 777 mutation-output/
           
           echo "[VENOMICA] Initiating Sandboxed Cognitive Engine..."
@@ -39,14 +38,20 @@ jobs:
             -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta:rw \
             --entrypoint /bin/bash \
             swayam-sandbox -c '
-              echo "[DOCKER-INTERNAL] Hunting for Swayam Supervisor Binary...";
-              # Dynamically locate the binary accurately based on CMake targets
-              CORE_BIN=$(find /home/swayam_agent -type f -name "swayam_supervisor" -executable | head -n 1);
+              echo "[DOCKER-INTERNAL] Hunting for Swayam Binary globally...";
+              
+              # [THE OMNIPRESENT HUNTER] Scan the ENTIRE container filesystem (/)
+              # Looks for either swayam_supervisor OR swayam_core, ignoring permission errors
+              CORE_BIN=$(find / -type f \( -name "swayam_supervisor" -o -name "swayam_core" \) -executable 2>/dev/null | head -n 1);
+              
               if [ -z "$CORE_BIN" ]; then
-                echo "[FATAL] swayam_supervisor binary not found in container!";
+                echo "[FATAL] Neither swayam_supervisor nor swayam_core binary found ANYWHERE in the container!";
+                echo "[DEBUG] Dumping container root to trace Dockerfile structure:";
+                ls -la /;
                 exit 1;
               fi
-              echo "[DOCKER-INTERNAL] Executing $CORE_BIN";
+              
+              echo "[DOCKER-INTERNAL] Target Locked: Executing $CORE_BIN";
               exec "$CORE_BIN"
             '
 
