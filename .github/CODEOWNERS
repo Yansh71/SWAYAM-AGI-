@@ -1,34 +1,33 @@
-# SWAYAM CODEOWNERS
-# Forces explicit human review on every file that controls the pipeline
-# itself. A mutation that escaped Moltbook's path boundary and touched
-# any of these paths would require @Yansh71 to approve the PR before
-# it could be merged - preventing autonomous pipeline self-modification.
-#
-# Place this file at: .github/CODEOWNERS
+# =====================================================================
+# VENOMICA QUANTUM MATRIX: SOVEREIGN CODE OWNERSHIP
+# Architect & Principal Engineer: Muhammad Yasin (@Yansh71)
+# =====================================================================
 
-# Pipeline control files must never be touched by autonomous mutations
-.github/workflows/         @Yansh71
-.github/CODEOWNERS         @Yansh71
+# 1. THE ABSOLUTE PERIMETER (Global Fallback)
+# By default, the Architect owns every single atom in this repository.
+*                   @Yansh71
 
-# Core security components
-include/core.hpp           @Yansh71
-include/GitCortex.h        @Yansh71
-include/NodeRegistry.hpp   @Yansh71
-include/CognitiveForge.hpp @Yansh71
-src/Moltbook.h             @Yansh71
-include/SafeShell.hpp      @Yansh71
-include/HeuristicAnalyzer.hpp @Yansh71
-include/MutationRunner.hpp @Yansh71
-include/QuarantineRegistry.hpp @Yansh71
-include/SwayamGitCortex.hpp @Yansh71
+# 2. THE NERVOUS SYSTEM (The AGI Core Brain)
+# All zero-trust components, heuristic firewalls, and ledgers.
+/include/           @Yansh71
 
-# Build configuration
-CMakeLists.txt             @Yansh71
-Dockerfile                 @Yansh71
+# 3. THE SINGULAR ENTRY POINT (The State Machine)
+# The only C++ source file that holds the execution lock.
+/src/main.cpp       @Yansh71
 
-# Scripts - especially the ones that touch the GitHub API
-scripts/                   @Yansh71
+# 4. THE MUTATION SANDBOX (The Evolution Chamber)
+# Where the AGI spawns its polymorphic DNA. 
+/src/generated/     @Yansh71
+/quarantine/        @Yansh71
 
-# Audit and documentation
-SECURITY_AUDIT.md          @Yansh71
-README.md                  @Yansh71
+# 5. CRYPTOGRAPHIC LEDGERS & TELEMETRY (The Memory Vault)
+# Read/Write filesystem for HiveMind sync and Moltbook immutable state.
+/meta/              @Yansh71
+
+# 6. CI/CD & AUTOMATION STATE MACHINE (The Heartbeat)
+# GitHub Actions, publishing circuits, and security scanners.
+/.github/           @Yansh71
+
+# 7. ARCHITECTURAL BLUEPRINTS & DNA CONTRACTS
+/CMakeLists.txt     @Yansh71
+/README.md          @Yansh71
