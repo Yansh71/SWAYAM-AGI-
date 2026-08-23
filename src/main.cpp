@@ -1,63 +1,44 @@
-//===
-// src/main.cpp - SWAYAM-AGI Titan Core
-// C++23 entry point. Wires all phases:
-// Phase 1-3: GitCortex sync + AtomicGuard + Moltbook
-// Phase 4:   Hive Mind (NodeRegistry peer quarantine merge)
-// Phase 5:   Neural Spawning (CognitiveForge + runtime C++)
-// Phase 6:   Predictive Execution Layer (HeuristicAnalyzer)
-//===
-
-#include "Moltbook.h"
-#include "core.hpp"   
-#include "SwayamGitCortex.hpp"
-#include "NodeRegistry.hpp" 
-#include "CognitiveForge.hpp" 
 #include <iostream>
-#include <cstdlib>
+#include <fstream>
+#include <string>
+#include <stdexcept>
+// [VENOMICA] Include your other custom headers here (e.g., SwayamGitCortex.hpp, etc.)
+#include "SafeShell.hpp"
 
 int main() {
-    std::cout << "[VENOMICA] SWAYAM-AGI Titan Core Online.\n";
-
-    // FIX: Calling the securely namespaced GitCortex
-    if (!Swayam::GitCortex::sync_state()) {
-        std::cerr << "[VENOMICA WARN] Git state sync returned non-clean status.\n";
+    // ---------------------------------------------------------
+    // 1. VENOMICA CORE: ROOT-LEVEL ADMIN KILL-SWITCH SENSOR
+    // ---------------------------------------------------------
+    std::ifstream kill_switch("KILL_SWITCH.lock");
+    if (kill_switch.good()) {
+        std::cerr << "[VENOMICA FATAL OVERRIDE] KILL_SWITCH.lock detected!\n";
+        std::cerr << "[VENOMICA] Architect has frozen the Matrix. Halting all cognitive and mutation operations immediately.\n";
+        return 1; // Instant abort before ANY memory is allocated or sandbox is spawned
     }
 
-    const std::string node_id = Swayam::derive_node_id();
-    std::cout << "[VENOMICA] Node Identity: " << node_id << "\n";
-
-    const char* env_qlog = std::getenv("SWAYAM_QUARANTINE_LOG");
-    const std::string quarantine_log = env_qlog ? env_qlog : "/tmp/quarantine.log";
-
-    Swayam::merge_all_peer_files(quarantine_log);
-    SwayamAGI::Core::Moltbook::spawnCognitiveNode("QuantumNode_Alpha");
-
-    Swayam::AtomicGuard guard;
-    const std::string beta_source = R"cpp(
-#include <iostream>
-inline void execute_pathway() {
-    std::cout << "[FORGE] QuantumNode_Beta cognitive pathway is live.\n";
-}
-)cpp";
+    std::cout << "[VENOMICA] Titan Core Booting... Perimeter Clear.\n";
 
     try {
-        auto result = Swayam::CognitiveForge::spawn(guard, "QuantumNode_Beta", beta_source);
+        // ---------------------------------------------------------
+        // 2. VENOMICA CORE: ENFORCE FIREWALL (SAFESHELL) BOUNDARIES
+        // ---------------------------------------------------------
+        Swayam::SafeShell::enforce_sandboxed_execution("echo 'Validating core execution boundaries'");
+        
+        // ---------------------------------------------------------
+        // 3. VENOMICA CORE: AGENTIC SPAWNING SEQUENCE
+        // ---------------------------------------------------------
+        std::cout << "[VENOMICA] Initiating Cognitive Engine & Mutation Sequence...\n";
+        
+        // [VENOMICA] Your actual cortex/mutation logic runs here.
+        // e.g., Swayam::GitCortex::execute_mutation_cycle();
+        // e.g., System execution loops
+        
+        std::cout << "[VENOMICA] Core Execution Cycle Complete.\n";
 
-        if (result.executed) {
-            std::cout << "[VENOMICA] Phase 5: Neural spawn successful.\n";
-        } else if (result.quarantined) {
-            std::cout << "[VENOMICA] Phase 5: Spawn crashed -> quarantined.\n";
-        } else if (!result.compiled) {
-            std::cout << "[VENOMICA] Phase 5: Compile failed.\n" << result.compile_log << "\n";
-        } else {
-            std::cout << "[VENOMICA] Phase 5: Spawn exited non-zero.\n";
-        }
     } catch (const std::exception& e) {
-        std::cerr << "[VENOMICA FATAL] " << e.what() << "\n";
+        std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
         return 1;
     }
 
-    Swayam::export_node_signatures(quarantine_log, "/tmp/node_export_" + node_id + ".csv");
-    std::cout << "[VENOMICA] Titan Core Cycle complete. Hive sync pending.\n";
     return 0;
 }
