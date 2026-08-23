@@ -10,7 +10,7 @@
 #include "HeuristicAnalyzer.hpp"
 #include "MutationRunner.hpp"
 #include "QuarantineRegistry.hpp"
-#include "SwayamGitCortex.hpp"
+// [VENOMICA OVERRIDE] SwayamGitCortex.hpp is deliberately EXCLUDED. Zero-Trust Enforced.
 
 int main() {
     // ---------------------------------------------------------
@@ -25,7 +25,9 @@ int main() {
 
     std::cout << "[VENOMICA] Titan Core Booting... Perimeter Clear.\n";
 
+    // EXPLICIT DUAL-PATH ARCHITECTURE
     std::string mutation_sandbox_dir = "mutation-output/src/generated";
+    std::string meta_dir = "mutation-output/meta";
     std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
 
     try {
@@ -39,7 +41,8 @@ int main() {
         // ---------------------------------------------------------
         std::cout << "[VENOMICA] Initiating Quantum Cognitive Engine...\n";
         
-        if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir)) {
+        // [FIX APPLIED] Passing BOTH target and meta directories to the Forge
+        if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir, meta_dir)) {
             std::cout << "[VENOMICA] Cognitive Forge spawned polymorphic logic.\n";
             
             // ---------------------------------------------------------
@@ -58,17 +61,17 @@ int main() {
             }
             
             // ---------------------------------------------------------
-            // 6. VENOMICA CORE: THE PUBLISHER (AUTONOMOUS ASSIMILATION)
+            // 6. VENOMICA CORE: AUTONOMOUS ASSIMILATION CONFIRMED
             // ---------------------------------------------------------
-            // If execution reaches here, the mutation is 100% safe, tested, and working.
-            Swayam::GitCortex::publish_successful_mutation(target_file);
+            // [DANNY'S OVERRIDE] C++ no longer pushes to Git. 
+            // CI/CD workflow will read status.json and handle the PR.
+            std::cout << "[VENOMICA] Core Execution Cycle Complete. Mutation is 100% safe and verified.\n";
+            std::cout << "[VENOMICA] Control delegated to CI/CD State Machine for PR execution.\n";
 
         } else {
             throw std::runtime_error("Cognitive Forge critical failure: Unable to generate mutation.");
         }
         
-        std::cout << "[VENOMICA] Core Execution Cycle Complete. The AGI is fully sovereign.\n";
-
     } catch (const std::exception& e) {
         std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
         
@@ -76,6 +79,9 @@ int main() {
         // 7. VENOMICA CORE: QUARANTINE & SELF-HEALING REGISTRY
         // ---------------------------------------------------------
         Swayam::QuarantineRegistry::isolate_anomaly(e.what(), target_file);
+        
+        // [STATE MACHINE FIX] Explicitly overwrite any premature 'published' state
+        Swayam::OutputEmitter::emit_quarantine(meta_dir, e.what());
         
         return 1; // Trigger CI/CD failure to alert the Architect
     }
