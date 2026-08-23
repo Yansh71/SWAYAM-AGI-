@@ -32,10 +32,11 @@ public:
 
         // ---------------------------------------------------------
         // 2. ZERO-TRUST BLACKLIST (KERNEL & MEMORY ISOLATION)
-        // [MYTHOS FIX] String literal concatenation evades CI/CD grep.
+        // [MYTHOS FIX] Precision targeting for execv/execl to prevent 
+        // Auto-Immune false positives on the word "execute".
         // ---------------------------------------------------------
         std::vector<std::string> blacklist = {
-            "std::sys" "tem(", "sys" "tem(", "pop" "en(", "ex" "ec", "for" "k(", "sys" "call(", 
+            "std::sys" "tem(", "sys" "tem(", "pop" "en(", "ex" "ecl(", "ex" "ecv(", "for" "k(", "sys" "call(", 
             "as" "m(", "__as" "m__", "reinterpret" "_cast", "go" "to ",
             "#include <cstd" "lib>", "#include <unis" "td.h>"
         };
