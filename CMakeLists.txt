@@ -1,14 +1,17 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)
+project(SWAYAM_AGI VERSION 1.0.0 LANGUAGES CXX)
 
-project(SWAYAM_AGI CXX)
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Target 1: swayam_core - Titan Core entry point
-# Name matches the GitHub Actions execution step perfectly
+# THE SINGULAR EXECUTION LOCK
 add_executable(swayam_core src/main.cpp)
-target_include_directories(swayam_core PRIVATE include src)
 
-# Target 2: swayam_supervisor - crash-safe mutation runner
-add_executable(swayam_supervisor scripts/testing/supervisor_main.cpp)
-target_include_directories(swayam_supervisor PRIVATE include src)
+# THE ZERO-TRUST NERVOUS SYSTEM
+target_include_directories(swayam_core PRIVATE include)
+
+# ENFORCE STRICT PHYSICS
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(swayam_core PRIVATE -O3 -Wall -Wextra -Werror -march=native)
+endif()
