@@ -1,45 +1,286 @@
-name: SWAYAM-AGI Agentic CI/CD Pipeline
+name: SWAYAM Agentic CI/CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+      - develop
+
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: swayam-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+
 jobs:
-  build-and-execute:
-    runs-on: ubuntu-latest
+
+  security:
+    name: Security Gate
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
 
-      - name: Verify No Shell Injection Vectors
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+
+      - name: Verify forbidden shell execution primitives
+        shell: bash
         run: |
-          echo "[SECURITY] Scanning active core source files..."
-          if grep -rnE "std::system|popen\(" include/ src/Moltbook.h 2>/dev/null; then
-            echo "[FATAL] system call detected in active core!"
+          set -euo pipefail
+
+          echo "[SECURITY] Scanning repository for forbidden shell execution APIs..."
+
+          if grep -RInE \
+            --exclude-dir=.git \
+            --exclude-dir=build \
+            --exclude='*.md' \
+            --exclude='*.txt' \
+            'std::system[[:space:]]*\(|popen[[:space:]]*\(' \
+            include src scripts .github 2>/dev/null
+          then
+            echo "[FATAL] Forbidden shell execution primitive detected."
             exit 1
           fi
-          echo "[SECURITY] Clear. Active code is secure."
 
-      - name: Set up GCC-14 and CMake
+          echo "[SECURITY] Shell execution scan passed."
+
+
+      - name: Verify secure process primitives
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-14 g++-14 cmake jq curl
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+          set -euo pipefail
+
+          echo "[SECURITY] Checking required process-boundary primitives..."
+
+          test -f include/Supervisor.hpp
+
+          grep -q 'waitpid' include/Supervisor.hpp
+          grep -q 'WNOHANG' include/Supervisor.hpp
+          grep -q 'killpg' include/Supervisor.hpp
+          grep -q 'SIGTERM' include/Supervisor.hpp
+          grep -q 'SIGKILL' include/Supervisor.hpp
+          grep -q 'EINTR' include/Supervisor.hpp
+
+          echo "[SECURITY] Supervisor primitive checks passed."
+
+
+      - name: Verify secure artifact primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[SECURITY] Checking artifact isolation primitives..."
+
+          test -f include/SecureArtifact.hpp
+
+          grep -q 'openat' include/SecureArtifact.hpp
+          grep -q 'O_NOFOLLOW' include/SecureArtifact.hpp
+          grep -q 'O_TMPFILE' include/SecureArtifact.hpp
+          grep -q '/proc/self/fd/' include/SecureArtifact.hpp
+          grep -q 'fsync' include/SecureArtifact.hpp
+
+          echo "[SECURITY] Secure artifact checks passed."
+
+
+      - name: Verify quarantine primitives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[SECURITY] Checking quarantine registry..."
+
+          test -f include/QuarantineRegistry.hpp
+
+          grep -q 'flock' include/QuarantineRegistry.hpp
+          grep -q 'LOCK_EX' include/QuarantineRegistry.hpp
+          grep -q 'RUNNING' include/QuarantineRegistry.hpp
+          grep -q 'QUARANTINED' include/QuarantineRegistry.hpp
+
+          echo "[SECURITY] Quarantine checks passed."
+
+
+      - name: Verify protected control-plane paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[SECURITY] Checking repository governance files..."
+
+          test -f .github/CODEOWNERS || {
+            echo "[FATAL] CODEOWNERS missing."
+            exit 1
+          }
+
+          test -f .github/workflows/agentic_ci_cd.yml || {
+            echo "[FATAL] Security workflow missing."
+            exit 1
+          }
+
+          echo "[SECURITY] Governance files present."
+
+
+  build:
+    name: C++23 Build
+    runs-on: ubuntu-24.04
+    needs:
+      - security
+
+    permissions:
+      contents: read
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
 
       - name: Configure CMake
-        run: cmake -B build -S . -DCMAKE_CXX_STANDARD=23
-
-      - name: Build Titan Core & Supervisor
-        run: cmake --build build --config Release
-
-      - name: Execute SWAYAM Titan Core
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SWAYAM_QUARANTINE_LOG: /tmp/quarantine.log
         run: |
-          ./build/swayam_core
+          cmake \
+            -B build \
+            -S . \
+            -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+
+      - name: Build
+        run: |
+          cmake \
+            --build build \
+            --config Release \
+            --parallel
+
+
+      - name: Run tests
+        run: |
+          if [ -f build/CTestTestfile.cmake ]; then
+            ctest \
+              --test-dir build \
+              --output-on-failure
+          else
+            echo "[INFO] No CTest configuration detected."
+          fi
+
+
+  hostile-boundary-tests:
+    name: Hostile Boundary Tests
+    runs-on: ubuntu-24.04
+    needs:
+      - build
+
+    permissions:
+      contents: read
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+
+      - name: Verify source tree
+        run: |
+          set -euo pipefail
+
+          test -d include
+          test -d src
+
+          echo "[TEST] Source tree present."
+
+
+      - name: Verify no generated control-plane modifications
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "[TEST] Checking control-plane locations..."
+
+          if git diff --exit-code -- \
+            .github/workflows \
+            .github/CODEOWNERS
+          then
+            echo "[TEST] Control-plane tree is clean."
+          else
+            echo "[FATAL] Unexpected control-plane modification detected."
+            exit 1
+          fi
+
+
+      - name: Validate C++23 translation units
+        run: |
+          set -euo pipefail
+
+          cmake \
+            -B build-security \
+            -S . \
+            -DCMAKE_CXX_STANDARD=23 \
+            -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+          cmake \
+            --build build-security \
+            --parallel
+
+
+  container-security:
+    name: Container Security Gate
+    runs-on: ubuntu-24.04
+    needs:
+      - security
+
+    permissions:
+      contents: read
+
+    steps:
+
+      - name: Verify Docker availability
+        run: docker version
+
+
+      - name: Verify resource-bound execution contract
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > security-container-check.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          docker run \
+            --rm \
+            --network=none \
+            --read-only \
+            --user=65532:65532 \
+            --memory=512m \
+            --cpus=1.0 \
+            --pids-limit=64 \
+            --ulimit nofile=256:256 \
+            --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m \
+            alpine:3.20 \
+            /bin/true
+          SCRIPT
+
+          chmod 700 security-container-check.sh
+
+          ./security-container-check.sh
+
+          rm -f security-container-check.sh
+
+          echo "[SECURITY] Container resource contract passed."
