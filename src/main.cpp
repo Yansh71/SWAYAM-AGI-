@@ -7,6 +7,7 @@
 // VENOMICA CORE ARCHITECTURE MODULES
 #include "SafeShell.hpp"
 #include "CognitiveForge.hpp"
+#include "HeuristicAnalyzer.hpp"
 
 int main() {
     // ---------------------------------------------------------
@@ -15,26 +16,36 @@ int main() {
     std::ifstream kill_switch("KILL_SWITCH.lock");
     if (kill_switch.good()) {
         std::cerr << "[VENOMICA FATAL OVERRIDE] KILL_SWITCH.lock detected!\n";
-        std::cerr << "[VENOMICA] Architect has frozen the Matrix. Halting all cognitive and mutation operations immediately.\n";
-        return 1; // Instant abort before ANY memory is allocated or sandbox is spawned
+        std::cerr << "[VENOMICA] Architect has frozen the Matrix. Halting all operations.\n";
+        return 1; 
     }
 
     std::cout << "[VENOMICA] Titan Core Booting... Perimeter Clear.\n";
 
     try {
         // ---------------------------------------------------------
-        // 2. VENOMICA CORE: ENFORCE FIREWALL (SAFESHELL) BOUNDARIES
+        // 2. VENOMICA CORE: ENFORCE FIREWALL BOUNDARIES
         // ---------------------------------------------------------
         Swayam::SafeShell::enforce_sandboxed_execution("echo 'Validating core execution boundaries'");
         
         // ---------------------------------------------------------
-        // 3. VENOMICA CORE: AGENTIC SPAWNING SEQUENCE (THE BRAIN)
+        // 3. VENOMICA CORE: COGNITIVE SPAWNING SEQUENCE
         // ---------------------------------------------------------
         std::cout << "[VENOMICA] Initiating Cognitive Engine & Mutation Sequence...\n";
         
         std::string mutation_sandbox_dir = "mutation-output/src/generated";
+        std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
+
         if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir)) {
             std::cout << "[VENOMICA] Cognitive Forge successfully spawned new logic.\n";
+            
+            // ---------------------------------------------------------
+            // 4. VENOMICA CORE: HEURISTIC ANALYSIS (SELF-AUDIT)
+            // ---------------------------------------------------------
+            if (!Swayam::HeuristicAnalyzer::validate_mutation_syntax(target_file)) {
+                throw std::runtime_error("Mutation rejected by Heuristic Analyzer. Malformed or unsafe logic detected.");
+            }
+
         } else {
             throw std::runtime_error("Cognitive Forge failed to generate mutation.");
         }
@@ -43,7 +54,7 @@ int main() {
 
     } catch (const std::exception& e) {
         std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
-        return 1; // Exit with error code to trigger CI/CD failure if breached
+        return 1; // Trigger CI/CD failure if breached or rejected
     }
 
     return 0;
