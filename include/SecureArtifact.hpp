@@ -1,9 +1,9 @@
-#ifndef SWAYAM_SECURE_ARTIFACT_HPP
-#define SWAYAM_SECURE_ARTIFACT_HPP
+#pragma once
 
 #include <cerrno>
 #include <cstdint>
 #include <fcntl.h>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -15,7 +15,10 @@
 namespace Swayam {
 
 /*
- * RAII wrapper for a POSIX file descriptor.
+ * Owns one POSIX descriptor.
+ *
+ * Copying is disabled because ownership must remain unique.
+ * Moving transfers ownership.
  */
 class UniqueFd {
 private:
@@ -56,25 +59,42 @@ public:
         return fd_ >= 0;
     }
 
-    void reset(int replacement = -1) noexcept {
+    int release() noexcept {
+        return std::exchange(fd_, -1);
+    }
+
+    void reset(int fd = -1) noexcept {
         if (fd_ >= 0) {
             (void)::close(fd_);
         }
 
-        fd_ = replacement;
-    }
-
-    [[nodiscard]]
-    int release() noexcept {
-        return std::exchange(fd_, -1);
+        fd_ = fd;
     }
 };
 
 
 /*
- * Immutable descriptor-backed artifact.
+ * Descriptor-backed immutable-in-practice compilation artifact.
  *
- * The descriptor remains open for the lifetime of this object.
+ * The compiler receives proc_fd_path rather than the original pathname.
+ *
+ * Therefore:
+ *
+ *     source pathname
+ *          |
+ *          v
+ *       openat()
+ *          |
+ *          v
+ *    descriptor-backed copy
+ *          |
+ *       hash bytes
+ *          |
+ *          v
+ *   /proc/self/fd/N
+ *          |
+ *          v
+ *       compiler
  */
 struct StagedArtifact {
     UniqueFd descriptor;
@@ -95,9 +115,6 @@ private:
     static constexpr std::uint64_t FNV_PRIME =
         1099511628211ULL;
 
-    /*
-     * Maximum source artifact accepted by this primitive.
-     */
     static constexpr std::uint64_t MAX_ARTIFACT_SIZE =
         8ULL * 1024ULL * 1024ULL;
 
@@ -108,16 +125,17 @@ private:
     /*
      * Only a single filename component is accepted.
      *
-     * This intentionally rejects:
-     *
-     *   .
-     *   ..
-     *   /
-     *   ../
-     *   absolute paths
-     *   nested paths
-     *
      * The trusted directory is supplied separately as dir_fd.
+     * This prevents this primitive from accepting:
+     *
+     *     ../x
+     *     ../../x
+     *     /absolute/path
+     *     a/b
+     *     -
+     *
+     * Directory traversal is therefore not represented by the
+     * artifact-name argument.
      */
     static bool valid_component(
         const std::string& name)
@@ -126,9 +144,7 @@ private:
             return false;
         }
 
-        if (name == "." ||
-            name == "..")
-        {
+        if (name == "." || name == "..") {
             return false;
         }
 
@@ -137,7 +153,7 @@ private:
         }
 
         for (const unsigned char c : name) {
-            const bool permitted =
+            const bool allowed =
                 (c >= 'a' && c <= 'z') ||
                 (c >= 'A' && c <= 'Z') ||
                 (c >= '0' && c <= '9') ||
@@ -145,7 +161,7 @@ private:
                 c == '-' ||
                 c == '.';
 
-            if (!permitted) {
+            if (!allowed) {
                 return false;
             }
         }
@@ -154,18 +170,12 @@ private:
     }
 
 
-    /*
-     * FNV-1a update.
-     */
     static std::uint64_t update_hash(
         std::uint64_t hash,
         const std::uint8_t* data,
-        std::size_t length)
+        std::size_t size)
     {
-        for (std::size_t i = 0;
-             i < length;
-             ++i)
-        {
+        for (std::size_t i = 0; i < size; ++i) {
             hash ^= data[i];
             hash *= FNV_PRIME;
         }
@@ -174,16 +184,8 @@ private:
     }
 
 
-    /*
-     * Reposition the descriptor at the beginning.
-     */
-    static void rewind_descriptor(
-        int fd)
-    {
-        if (::lseek(
-                fd,
-                static_cast<off_t>(0),
-                SEEK_SET) ==
+    static void seek_start(int fd) {
+        if (::lseek(fd, 0, SEEK_SET) ==
             static_cast<off_t>(-1))
         {
             throw std::runtime_error(
@@ -192,66 +194,81 @@ private:
     }
 
 
+    static struct stat metadata(int fd) {
+        struct stat st{};
+
+        if (::fstat(fd, &st) != 0) {
+            throw std::runtime_error(
+                "artifact metadata query failed");
+        }
+
+        if (!S_ISREG(st.st_mode)) {
+            throw std::runtime_error(
+                "artifact is not a regular file");
+        }
+
+        if (st.st_size < 0) {
+            throw std::runtime_error(
+                "artifact has invalid size");
+        }
+
+        return st;
+    }
+
+
     /*
-     * Remove close-on-exec after validation.
+     * Create an anonymous staging object.
      *
-     * The compiler process must inherit the descriptor so that
-     * /proc/self/fd/N remains usable after exec.
+     * Linux O_TMPFILE prevents a pathname from being introduced for
+     * the staged artifact. The descriptor is subsequently exposed
+     * only through /proc/self/fd/N.
      */
-    static void make_inheritable(
-        int fd)
+    static int create_staging_fd(
+        int directory_fd)
     {
+#ifdef O_TMPFILE
+        const int fd =
+            ::openat(
+                directory_fd,
+                ".",
+                O_RDWR |
+                O_TMPFILE |
+                O_CLOEXEC,
+                0600);
+
+        if (fd >= 0) {
+            return fd;
+        }
+#endif
+
+        /*
+         * There is deliberately no pathname fallback here.
+         *
+         * A named temporary file would reintroduce a filesystem
+         * namespace race into the staging boundary.
+         */
+        throw std::runtime_error(
+            "anonymous artifact staging unavailable");
+    }
+
+
+    static void make_inheritable(int fd) {
         const int flags =
-            ::fcntl(
-                fd,
-                F_GETFD);
+            ::fcntl(fd, F_GETFD);
 
         if (flags < 0) {
             throw std::runtime_error(
                 "descriptor flag query failed");
         }
 
-        const int updated =
-            flags & ~FD_CLOEXEC;
-
         if (::fcntl(
                 fd,
                 F_SETFD,
-                updated) < 0)
+                flags & ~FD_CLOEXEC) < 0)
         {
             throw std::runtime_error(
                 "descriptor inheritance setup failed");
         }
-    }
-
-
-    /*
-     * Verify that the descriptor still represents a regular file.
-     */
-    static struct stat read_metadata(
-        int fd)
-    {
-        struct stat metadata{};
-
-        if (::fstat(
-                fd,
-                &metadata) != 0)
-        {
-            throw std::runtime_error(
-                "artifact metadata query failed");
-        }
-
-        if (!S_ISREG(metadata.st_mode)) {
-            throw std::runtime_error(
-                "artifact is not a regular file");
-        }
-
-        if (metadata.st_size < 0) {
-            throw std::runtime_error(
-                "invalid artifact size");
-        }
-
-        return metadata;
     }
 
 
@@ -260,70 +277,65 @@ public:
 
 
     /*
-     * Open and hash an artifact relative to a trusted directory
-     * descriptor.
+     * Opens the source relative to a trusted directory descriptor,
+     * copies the exact consumed bytes into an anonymous descriptor,
+     * hashes that descriptor-backed copy, and returns a compiler-safe
+     * /proc/self/fd/N reference.
      *
-     * Security properties:
+     * The important invariant is:
      *
-     * 1. No pathname traversal is accepted by this primitive.
-     * 2. Resolution is relative to dir_fd.
-     * 3. O_NOFOLLOW prevents the final component from being a symlink.
-     * 4. The opened descriptor, not the pathname, is hashed.
-     * 5. The descriptor remains open after validation.
-     * 6. /proc/self/fd/N identifies that descriptor.
+     *     bytes hashed == bytes compiled
+     *
+     * because both operations refer to the same staged descriptor.
      */
     [[nodiscard]]
-    static StagedArtifact open_and_hash(
-        int dir_fd,
-        const std::string& name)
+    static StagedArtifact open_and_stage(
+        int source_directory_fd,
+        const std::string& source_name,
+        int staging_directory_fd)
     {
-        if (dir_fd < 0) {
+        if (source_directory_fd < 0) {
             throw std::invalid_argument(
-                "invalid directory descriptor");
+                "invalid source directory descriptor");
         }
 
-        if (!valid_component(name)) {
+        if (staging_directory_fd < 0) {
+            throw std::invalid_argument(
+                "invalid staging directory descriptor");
+        }
+
+        if (!valid_component(source_name)) {
             throw std::invalid_argument(
                 "invalid artifact name");
         }
 
 
         /*
-         * O_CLOEXEC is initially enabled while validation is performed.
-         *
-         * It is explicitly removed only after the descriptor has been
-         * completely validated and hashed.
+         * O_NOFOLLOW prevents the final source component from being
+         * substituted with a symlink.
          */
-        const int raw_fd =
+        UniqueFd source(
             ::openat(
-                dir_fd,
-                name.c_str(),
+                source_directory_fd,
+                source_name.c_str(),
                 O_RDONLY |
                 O_NOFOLLOW |
-                O_CLOEXEC);
+                O_CLOEXEC));
 
-        if (raw_fd < 0) {
+        if (!source.valid()) {
             throw std::runtime_error(
-                "artifact open failed");
+                "secure artifact open failed");
         }
 
-        UniqueFd descriptor(raw_fd);
 
+        const struct stat source_initial =
+            metadata(source.get());
 
-        /*
-         * First metadata snapshot.
-         */
-        const struct stat initial =
-            read_metadata(
-                descriptor.get());
-
-
-        const std::uint64_t expected_size =
+        const std::uint64_t source_size =
             static_cast<std::uint64_t>(
-                initial.st_size);
+                source_initial.st_size);
 
-
-        if (expected_size >
+        if (source_size >
             MAX_ARTIFACT_SIZE)
         {
             throw std::runtime_error(
@@ -332,10 +344,11 @@ public:
 
 
         /*
-         * Hash exactly what is read through the descriptor.
+         * The staged object is anonymous and descriptor-backed.
          */
-        rewind_descriptor(
-            descriptor.get());
+        UniqueFd staged(
+            create_staging_fd(
+                staging_directory_fd));
 
 
         std::vector<std::uint8_t> buffer(
@@ -347,18 +360,22 @@ public:
             FNV_OFFSET;
 
 
+        /*
+         * Copy and hash in the same pass.
+         *
+         * The bytes written to the staging descriptor are exactly
+         * the bytes incorporated into the hash.
+         */
         for (;;) {
             const ssize_t count =
                 ::read(
-                    descriptor.get(),
+                    source.get(),
                     buffer.data(),
                     buffer.size());
-
 
             if (count == 0) {
                 break;
             }
-
 
             if (count < 0) {
                 if (errno == EINTR) {
@@ -369,22 +386,47 @@ public:
                     "artifact read failed");
             }
 
-
-            const auto current =
+            const std::uint64_t amount =
                 static_cast<std::uint64_t>(
                     count);
 
-
-            if (current >
+            if (amount >
                 MAX_ARTIFACT_SIZE - total)
             {
                 throw std::runtime_error(
-                    "artifact exceeded size limit");
+                    "artifact size limit exceeded");
             }
 
+            std::size_t offset = 0;
 
-            total += current;
+            while (offset <
+                   static_cast<std::size_t>(count))
+            {
+                const ssize_t written =
+                    ::write(
+                        staged.get(),
+                        buffer.data() + offset,
+                        static_cast<std::size_t>(count) -
+                            offset);
 
+                if (written < 0) {
+                    if (errno == EINTR) {
+                        continue;
+                    }
+
+                    throw std::runtime_error(
+                        "artifact staging write failed");
+                }
+
+                if (written == 0) {
+                    throw std::runtime_error(
+                        "artifact staging made no progress");
+                }
+
+                offset +=
+                    static_cast<std::size_t>(
+                        written);
+            }
 
             hash =
                 update_hash(
@@ -392,74 +434,82 @@ public:
                     buffer.data(),
                     static_cast<std::size_t>(
                         count));
+
+            total += amount;
         }
 
 
         /*
-         * The number of bytes actually consumed must agree with the
-         * initial descriptor metadata.
+         * The original source descriptor is checked again.
+         *
+         * This does not matter for the TOCTOU property of the staged
+         * artifact—the compiler will never consume the source file.
+         *
+         * It does provide useful detection telemetry if the original
+         * artifact was replaced while it was being copied.
          */
-        if (total != expected_size) {
+        const struct stat source_final =
+            metadata(source.get());
+
+        if (source_final.st_dev !=
+                source_initial.st_dev ||
+            source_final.st_ino !=
+                source_initial.st_ino)
+        {
+            throw std::runtime_error(
+                "source artifact identity changed");
+        }
+
+        if (source_final.st_size !=
+            source_initial.st_size)
+        {
+            throw std::runtime_error(
+                "source artifact size changed");
+        }
+
+
+        if (total != source_size) {
             throw std::runtime_error(
                 "artifact length invariant failed");
         }
 
 
         /*
-         * Second metadata snapshot.
-         *
-         * This detects ordinary changes to the descriptor's underlying
-         * inode while the artifact was being consumed.
+         * Flush the staged bytes before they become an execution
+         * input.
          */
-        const struct stat final =
-            read_metadata(
-                descriptor.get());
-
-
-        if (final.st_dev != initial.st_dev ||
-            final.st_ino != initial.st_ino)
-        {
+        if (::fsync(staged.get()) != 0) {
             throw std::runtime_error(
-                "artifact identity changed");
-        }
-
-
-        if (final.st_size != initial.st_size) {
-            throw std::runtime_error(
-                "artifact size changed");
+                "artifact staging sync failed");
         }
 
 
         /*
-         * Reset the descriptor so the subsequent consumer starts from
-         * byte zero.
+         * Rewind the descriptor so the compiler starts at byte zero.
          */
-        rewind_descriptor(
-            descriptor.get());
+        seek_start(staged.get());
 
 
         /*
-         * The descriptor must survive exec().
+         * The compiler is started by a separate exec() process.
+         * Remove close-on-exec only after the artifact has been
+         * completely validated and staged.
          */
-        make_inheritable(
-            descriptor.get());
+        make_inheritable(staged.get());
 
 
-        const std::string proc_fd_path =
+        const std::string proc_path =
             "/proc/self/fd/" +
-            std::to_string(
-                descriptor.get());
+            std::to_string(staged.get());
 
 
         return StagedArtifact{
-            std::move(descriptor),
+            std::move(staged),
             total,
             hash,
-            proc_fd_path
+            proc_path
         };
     }
 };
 
 } // namespace Swayam
-
-#endif // SWAYAM_SECURE_ARTIFACT_HPP
