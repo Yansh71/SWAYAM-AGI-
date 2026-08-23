@@ -8,6 +8,7 @@
 #include "SafeShell.hpp"
 #include "CognitiveForge.hpp"
 #include "HeuristicAnalyzer.hpp"
+#include "MutationRunner.hpp"
 
 int main() {
     // ---------------------------------------------------------
@@ -45,12 +46,20 @@ int main() {
             if (!Swayam::HeuristicAnalyzer::validate_mutation_syntax(target_file)) {
                 throw std::runtime_error("Mutation rejected by Heuristic Analyzer. Malformed or unsafe logic detected.");
             }
+            
+            // ---------------------------------------------------------
+            // 5. VENOMICA CORE: DYNAMIC COMPILATION & EXECUTION
+            // ---------------------------------------------------------
+            std::string output_binary = mutation_sandbox_dir + "/mutation_core_bin";
+            if (!Swayam::MutationRunner::compile_and_execute(target_file, output_binary)) {
+                throw std::runtime_error("Mutation Runner failed. The generated logic is unstable or crashed during runtime.");
+            }
 
         } else {
             throw std::runtime_error("Cognitive Forge failed to generate mutation.");
         }
         
-        std::cout << "[VENOMICA] Core Execution Cycle Complete.\n";
+        std::cout << "[VENOMICA] Core Execution Cycle Complete. The Matrix is breathing.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
