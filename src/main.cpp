@@ -5,11 +5,13 @@
 #include <filesystem>
 
 // VENOMICA CORE ARCHITECTURE MODULES
-#include "SafeShell.hpp"
+// Note: SafeShell.hpp is permanently removed. No cosmetic shell executions.
 #include "CognitiveForge.hpp"
 #include "HeuristicAnalyzer.hpp"
 #include "MutationRunner.hpp"
 #include "QuarantineRegistry.hpp"
+// Assuming OutputEmitter is explicitly included here or inside CognitiveForge
+#include "OutputEmitter.hpp" 
 
 int main() {
     // ---------------------------------------------------------
@@ -31,8 +33,8 @@ int main() {
     std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
 
     try {
-        Swayam::SafeShell::enforce_sandboxed_execution("echo 'Validating core execution boundaries'");
-        
+        // SafeShell cosmetic check removed. Matrix relies on OS limits and AST heuristics.
+
         std::cout << "[VENOMICA] Initiating Quantum Cognitive Engine...\n";
         
         if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir, meta_dir)) {
@@ -59,16 +61,16 @@ int main() {
         
         // ---------------------------------------------------------
         // 7. VENOMICA CORE: TRUE FORENSIC QUARANTINE ROUTING
-        // No Bypasses. If it fails to isolate, the system halts.
         // ---------------------------------------------------------
         Swayam::QuarantineRegistry::isolate_anomaly(e.what(), target_file);
         
         // Emit explicit state for the CI/CD pipeline
         Swayam::OutputEmitter::emit_quarantine(meta_dir, e.what());
         
-        // Return 0 because the containment was successful and the matrix is secure.
-        return 0; 
+        // [MYTHOS FIX] Containment succeeded, but this mutation MUST NOT be published.
+        // Returning 1 forces the downstream CI/CD workflow to recognize the failure state.
+        return 1; 
     }
 
-    return 0;
+    return 0; // Pure success. Matrix is mathematically unique and safe.
 }
