@@ -21,18 +21,34 @@ jobs:
         run: |
           set -euo pipefail
           
+          echo "[VENOMICA] Provisioning host boundary directories..."
           mkdir -p mutation-output/src/generated
           mkdir -p mutation-output/meta
           
+          # [ZERO-DAY FIX] Eliminate Cross-Boundary Permission Denial
+          # Ensures the internal non-root Docker user can write files back to the GitHub host
+          chmod -R 777 mutation-output/
+          
           echo "[VENOMICA] Initiating Sandboxed Cognitive Engine..."
           
-          # The Ultimate Perimeter: Network isolated, read-only, tmpfs, strictly resource bounded
+          # The Ultimate Perimeter: Network isolated, read-only root, explicit write access ONLY to mounts
           docker run --rm --network none \
             --read-only --tmpfs /tmp \
             --memory=512m --cpus=1.0 --pids-limit=64 \
-            -v ${{ github.workspace }}/mutation-output/src/generated:/home/swayam_agent/workspace/src/generated \
-            -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta \
-            swayam-sandbox
+            -v ${{ github.workspace }}/mutation-output/src/generated:/home/swayam_agent/workspace/src/generated:rw \
+            -v ${{ github.workspace }}/mutation-output/meta:/home/swayam_agent/workspace/meta:rw \
+            --entrypoint /bin/bash \
+            swayam-sandbox -c '
+              echo "[DOCKER-INTERNAL] Hunting for Swayam Supervisor Binary...";
+              # Dynamically locate the binary accurately based on CMake targets
+              CORE_BIN=$(find /home/swayam_agent -type f -name "swayam_supervisor" -executable | head -n 1);
+              if [ -z "$CORE_BIN" ]; then
+                echo "[FATAL] swayam_supervisor binary not found in container!";
+                exit 1;
+              fi
+              echo "[DOCKER-INTERNAL] Executing $CORE_BIN";
+              exec "$CORE_BIN"
+            '
 
           echo "[VENOMICA] Execution terminated. Analyzing output state..."
 
@@ -50,7 +66,6 @@ jobs:
                 echo "[FATAL] Published outcome missing rationale. Refusing to stage ghost PR."
                 exit 1
               fi
-              # Promote rationale to artifact root for the downstream publisher
               mv mutation-output/meta/rationale.md mutation-output/rationale.md
               echo "[VENOMICA] Mutation verified and rationale staged for PR."
               ;;
