@@ -1,15 +1,12 @@
-// SecureArtifact.hpp
-#pragma once
+#ifndef SWAYAM_SECURE_ARTIFACT_HPP
+#define SWAYAM_SECURE_ARTIFACT_HPP
 
 #include <cerrno>
 #include <cstdint>
-#include <cstring>
-#include <filesystem>
 #include <stdexcept>
 #include <string>
-#include <system_error>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -17,12 +14,18 @@
 
 namespace Swayam {
 
+/*
+ * Small RAII wrapper for a POSIX file descriptor.
+ */
 class UniqueFd {
+private:
     int fd_{-1};
 
 public:
-    UniqueFd() = default;
-    explicit UniqueFd(int fd) noexcept : fd_(fd) {}
+    UniqueFd() noexcept = default;
+
+    explicit UniqueFd(int fd) noexcept
+        : fd_(fd) {}
 
     UniqueFd(const UniqueFd&) = delete;
     UniqueFd& operator=(const UniqueFd&) = delete;
@@ -35,105 +38,299 @@ public:
             reset();
             fd_ = std::exchange(other.fd_, -1);
         }
+
         return *this;
     }
 
-    ~UniqueFd() { reset(); }
+    ~UniqueFd() {
+        reset();
+    }
 
-    int get() const noexcept { return fd_; }
-    bool valid() const noexcept { return fd_ >= 0; }
+    [[nodiscard]]
+    int get() const noexcept {
+        return fd_;
+    }
 
-    int release() noexcept { return std::exchange(fd_, -1); }
+    [[nodiscard]]
+    bool valid() const noexcept {
+        return fd_ >= 0;
+    }
 
-    void reset(int fd = -1) noexcept {
-        if (fd_ >= 0) ::close(fd_);
-        fd_ = fd;
+    void reset(int replacement = -1) noexcept {
+        if (fd_ >= 0) {
+            (void)::close(fd_);
+        }
+
+        fd_ = replacement;
+    }
+
+    [[nodiscard]]
+    int release() noexcept {
+        return std::exchange(fd_, -1);
     }
 };
 
+
 struct StagedArtifact {
-    UniqueFd fd;
-    std::uint64_t size{};
-    std::uint64_t hash{};
-    std::string proc_path;
+    UniqueFd descriptor;
+    std::uint64_t byte_count{0};
+    std::uint64_t content_hash{0};
+    std::string proc_fd_path;
 };
+
 
 class SecureArtifact {
 private:
-    static std::uint64_t fnv1a_update(std::uint64_t hash, const std::uint8_t* data, std::size_t size) {
-        constexpr std::uint64_t prime = 1099511628211ULL;
-        for (std::size_t i = 0; i < size; ++i) {
-            hash ^= data[i];
-            hash *= prime;
+    static constexpr std::uint64_t FNV_OFFSET =
+        14695981039346656037ULL;
+
+    static constexpr std::uint64_t FNV_PRIME =
+        1099511628211ULL;
+
+    static constexpr std::uint64_t MAX_ARTIFACT_SIZE =
+        8ULL * 1024ULL * 1024ULL;
+
+    static constexpr std::size_t BUFFER_SIZE =
+        64ULL * 1024ULL;
+
+
+    static bool valid_component(
+        const std::string& name)
+    {
+        if (name.empty()) {
+            return false;
         }
+
+        if (name == "." || name == "..") {
+            return false;
+        }
+
+        if (name.front() == '-') {
+            return false;
+        }
+
+        for (const unsigned char c :
+             std::vector<unsigned char>(
+                 name.begin(),
+                 name.end()))
+        {
+            const bool permitted =
+                (c >= 'a' && c <= 'z') ||
+                (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') ||
+                c == '_' ||
+                c == '-' ||
+                c == '.';
+
+            if (!permitted) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+
+    static std::uint64_t hash_update(
+        std::uint64_t hash,
+        const std::uint8_t* data,
+        std::size_t length)
+    {
+        for (std::size_t i = 0; i < length; ++i) {
+            hash ^= data[i];
+            hash *= FNV_PRIME;
+        }
+
         return hash;
     }
 
-public:
-    static StagedArtifact open_and_hash(int trusted_dir_fd, const std::string& relative_name) {
-        if (trusted_dir_fd < 0) throw std::invalid_argument("invalid trusted directory fd");
-        if (relative_name.empty()) throw std::invalid_argument("empty artifact name");
 
-        if (relative_name == "." || relative_name == ".." || relative_name.find('/') != std::string::npos)
-            throw std::invalid_argument("artifact name must be a single path component");
+    static void rewind_descriptor(int fd) {
+        if (::lseek(fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+            throw std::runtime_error(
+                "artifact seek failed");
+        }
+    }
 
-        if (relative_name.front() == '-')
-            throw std::invalid_argument("option-like artifact name");
 
-        // Use O_NOFOLLOW to prevent symlink traversal attacks at descriptor level
-        const int fd = ::openat(trusted_dir_fd, relative_name.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        if (fd < 0) throw std::runtime_error("failed to open artifact via openat");
+    static void make_inheritable(int fd) {
+        const int flags = ::fcntl(fd, F_GETFD);
 
-        UniqueFd artifact_fd(fd);
-        struct stat st{};
-        if (::fstat(artifact_fd.get(), &st) != 0)
-            throw std::runtime_error("failed to retrieve artifact metadata via fstat");
-
-        if (!S_ISREG(st.st_mode)) throw std::runtime_error("artifact is not a regular file");
-        if (st.st_size < 0) throw std::runtime_error("negative artifact size");
-
-        constexpr std::uint64_t MAX_SOURCE_SIZE = 8ULL * 1024ULL * 1024ULL;
-        const auto size = static_cast<std::uint64_t>(st.st_size);
-        if (size > MAX_SOURCE_SIZE) throw std::runtime_error("artifact exceeds maximum source size");
-
-        if (::lseek(artifact_fd.get(), 0, SEEK_SET) == -1)
-            throw std::runtime_error("failed to lseek artifact descriptor");
-
-        constexpr std::size_t BUFFER_SIZE = 64 * 1024;
-        std::vector<std::uint8_t> buffer(BUFFER_SIZE);
-        std::uint64_t hash = 14695981039346656037ULL;
-        std::uint64_t total = 0;
-
-        for (;;) {
-            const ssize_t n = ::read(artifact_fd.get(), buffer.data(), buffer.size());
-            if (n == 0) break;
-            if (n < 0) {
-                if (errno == EINTR) continue;
-                throw std::runtime_error("failed to read artifact data");
-            }
-            total += static_cast<std::uint64_t>(n);
-            if (total > MAX_SOURCE_SIZE) throw std::runtime_error("artifact grew beyond maximum size");
-            hash = fnv1a_update(hash, buffer.data(), static_cast<std::size_t>(n));
+        if (flags < 0) {
+            throw std::runtime_error(
+                "descriptor flag query failed");
         }
 
-        if (total != size) throw std::runtime_error("artifact size mismatch during read phase");
+        const int new_flags =
+            flags & ~FD_CLOEXEC;
 
-        if (::lseek(artifact_fd.get(), 0, SEEK_SET) == -1)
-            throw std::runtime_error("failed to reset artifact descriptor lseek");
+        if (::fcntl(
+                fd,
+                F_SETFD,
+                new_flags) < 0)
+        {
+            throw std::runtime_error(
+                "descriptor inheritance setup failed");
+        }
+    }
 
-        const int flags = ::fcntl(artifact_fd.get(), F_GETFD);
-        if (flags == -1) throw std::runtime_error("failed to get descriptor flags via fcntl");
 
-        if (::fcntl(artifact_fd.get(), F_SETFD, flags & ~FD_CLOEXEC) == -1)
-            throw std::runtime_error("failed to clear close-on-exec flag via fcntl");
+public:
+    /*
+     * dir_fd must identify a trusted directory opened by the caller.
+     *
+     * The supplied name is deliberately restricted to one directory
+     * component. This eliminates traversal semantics from this primitive.
+     */
+    [[nodiscard]]
+    static StagedArtifact open_and_hash(
+        int dir_fd,
+        const std::string& name)
+    {
+        if (dir_fd < 0) {
+            throw std::invalid_argument(
+                "invalid directory descriptor");
+        }
+
+        if (!valid_component(name)) {
+            throw std::invalid_argument(
+                "invalid artifact name");
+        }
+
+
+        const int raw_fd =
+            ::openat(
+                dir_fd,
+                name.c_str(),
+                O_RDONLY |
+                O_NOFOLLOW |
+                O_CLOEXEC);
+
+        if (raw_fd < 0) {
+            throw std::runtime_error(
+                "artifact open failed");
+        }
+
+        UniqueFd descriptor(raw_fd);
+
+
+        struct stat metadata{};
+
+        if (::fstat(
+                descriptor.get(),
+                &metadata) != 0)
+        {
+            throw std::runtime_error(
+                "artifact metadata query failed");
+        }
+
+
+        if (!S_ISREG(metadata.st_mode)) {
+            throw std::runtime_error(
+                "artifact is not a regular file");
+        }
+
+
+        if (metadata.st_size < 0) {
+            throw std::runtime_error(
+                "invalid artifact size");
+        }
+
+
+        const auto expected_size =
+            static_cast<std::uint64_t>(
+                metadata.st_size);
+
+        if (expected_size > MAX_ARTIFACT_SIZE) {
+            throw std::runtime_error(
+                "artifact exceeds configured size limit");
+        }
+
+
+        rewind_descriptor(descriptor.get());
+
+
+        std::vector<std::uint8_t> buffer(
+            BUFFER_SIZE);
+
+        std::uint64_t total = 0;
+
+        std::uint64_t hash =
+            FNV_OFFSET;
+
+
+        for (;;) {
+            const ssize_t count =
+                ::read(
+                    descriptor.get(),
+                    buffer.data(),
+                    buffer.size());
+
+            if (count == 0) {
+                break;
+            }
+
+            if (count < 0) {
+                if (errno == EINTR) {
+                    continue;
+                }
+
+                throw std::runtime_error(
+                    "artifact read failed");
+            }
+
+
+            const auto current =
+                static_cast<std::uint64_t>(count);
+
+            if (current >
+                MAX_ARTIFACT_SIZE - total)
+            {
+                throw std::runtime_error(
+                    "artifact exceeded size limit");
+            }
+
+            total += current;
+
+            hash = hash_update(
+                hash,
+                buffer.data(),
+                static_cast<std::size_t>(count));
+        }
+
+
+        /*
+         * The descriptor was opened before hashing and remains authoritative.
+         */
+        if (total != expected_size) {
+            throw std::runtime_error(
+                "artifact length changed");
+        }
+
+
+        rewind_descriptor(descriptor.get());
+
+        /*
+         * The compiler can consume this descriptor through
+         * /proc/self/fd/<N>.
+         */
+        make_inheritable(descriptor.get());
+
+
+        const std::string proc_path =
+            "/proc/self/fd/" +
+            std::to_string(descriptor.get());
+
 
         return StagedArtifact{
-            std::move(artifact_fd),
-            size,
+            std::move(descriptor),
+            total,
             hash,
-            "/proc/self/fd/" + std::to_string(artifact_fd.get())
+            proc_path
         };
     }
 };
 
 } // namespace Swayam
+
+#endif // SWAYAM_SECURE_ARTIFACT_HPP
