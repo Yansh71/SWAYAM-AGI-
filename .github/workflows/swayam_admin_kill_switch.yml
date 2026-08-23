@@ -1,0 +1,36 @@
+name: Swayam Admin Kill-Switch
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for engaging the Kill-Switch (e.g., Wild Mutation, Security Breach)'
+        required: true
+        default: 'Emergency System Override Initiated by Architect'
+
+permissions:
+  contents: write
+
+jobs:
+  engage_kill_switch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up job & Checkout
+        uses: actions/checkout@v4
+
+      - name: Forge the Kill-Switch Lock
+        run: |
+          echo "[VENOMICA FATAL] SYSTEM FROZEN BY ARCHITECT" > KILL_SWITCH.lock
+          echo "Reason: ${{ github.event.inputs.reason }}" >> KILL_SWITCH.lock
+          echo "Timestamp: $(date -u)" >> KILL_SWITCH.lock
+          echo "Initiator: ${{ github.actor }}" >> KILL_SWITCH.lock
+          cat KILL_SWITCH.lock
+
+      - name: Commit and Broadcast Override Signal
+        run: |
+          git config --global user.name "venomica-security-override[bot]"
+          git config --global user.email "venomica-security[bot]@users.noreply.github.com"
+          git add KILL_SWITCH.lock
+          git commit -m "[VENOMICA FATAL] Admin Kill-Switch Engaged: ${{ github.event.inputs.reason }}"
+          git push
+          echo "[VENOMICA] Kill-Switch signal broadcasted to the Hive Mind."
