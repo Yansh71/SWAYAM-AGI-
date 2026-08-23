@@ -10,7 +10,6 @@
 #include "HeuristicAnalyzer.hpp"
 #include "MutationRunner.hpp"
 #include "QuarantineRegistry.hpp"
-// [VENOMICA OVERRIDE] SwayamGitCortex.hpp is deliberately EXCLUDED. Zero-Trust Enforced.
 
 int main() {
     // ---------------------------------------------------------
@@ -25,9 +24,13 @@ int main() {
 
     std::cout << "[VENOMICA] Titan Core Booting... Perimeter Clear.\n";
 
-    // EXPLICIT DUAL-PATH ARCHITECTURE
-    std::string mutation_sandbox_dir = "mutation-output/src/generated";
-    std::string meta_dir = "mutation-output/meta";
+    // ---------------------------------------------------------
+    // [ZERO-DAY FIX] EXPLICIT ABSOLUTE CONTAINER PATHS
+    // Prevents CWD hijacking and ensures precise volume mapping.
+    // ---------------------------------------------------------
+    std::string workspace_root = "/home/swayam_agent/workspace";
+    std::string mutation_sandbox_dir = workspace_root + "/src/generated";
+    std::string meta_dir = workspace_root + "/meta";
     std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
 
     try {
@@ -41,7 +44,6 @@ int main() {
         // ---------------------------------------------------------
         std::cout << "[VENOMICA] Initiating Quantum Cognitive Engine...\n";
         
-        // [FIX APPLIED] Passing BOTH target and meta directories to the Forge
         if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir, meta_dir)) {
             std::cout << "[VENOMICA] Cognitive Forge spawned polymorphic logic.\n";
             
@@ -63,8 +65,6 @@ int main() {
             // ---------------------------------------------------------
             // 6. VENOMICA CORE: AUTONOMOUS ASSIMILATION CONFIRMED
             // ---------------------------------------------------------
-            // [DANNY'S OVERRIDE] C++ no longer pushes to Git. 
-            // CI/CD workflow will read status.json and handle the PR.
             std::cout << "[VENOMICA] Core Execution Cycle Complete. Mutation is 100% safe and verified.\n";
             std::cout << "[VENOMICA] Control delegated to CI/CD State Machine for PR execution.\n";
 
@@ -80,7 +80,7 @@ int main() {
         // ---------------------------------------------------------
         Swayam::QuarantineRegistry::isolate_anomaly(e.what(), target_file);
         
-        // [STATE MACHINE FIX] Explicitly overwrite any premature 'published' state
+        // Explicitly overwrite any premature 'published' state
         Swayam::OutputEmitter::emit_quarantine(meta_dir, e.what());
         
         return 1; // Trigger CI/CD failure to alert the Architect
