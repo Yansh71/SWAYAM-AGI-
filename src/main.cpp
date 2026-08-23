@@ -9,6 +9,7 @@
 #include "CognitiveForge.hpp"
 #include "HeuristicAnalyzer.hpp"
 #include "MutationRunner.hpp"
+#include "QuarantineRegistry.hpp"
 
 int main() {
     // ---------------------------------------------------------
@@ -23,6 +24,9 @@ int main() {
 
     std::cout << "[VENOMICA] Titan Core Booting... Perimeter Clear.\n";
 
+    std::string mutation_sandbox_dir = "mutation-output/src/generated";
+    std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
+
     try {
         // ---------------------------------------------------------
         // 2. VENOMICA CORE: ENFORCE FIREWALL BOUNDARIES
@@ -32,19 +36,16 @@ int main() {
         // ---------------------------------------------------------
         // 3. VENOMICA CORE: COGNITIVE SPAWNING SEQUENCE
         // ---------------------------------------------------------
-        std::cout << "[VENOMICA] Initiating Cognitive Engine & Mutation Sequence...\n";
+        std::cout << "[VENOMICA] Initiating Quantum Cognitive Engine & Mutation Sequence...\n";
         
-        std::string mutation_sandbox_dir = "mutation-output/src/generated";
-        std::string target_file = mutation_sandbox_dir + "/test_mutation.cpp";
-
         if (Swayam::CognitiveForge::generate_mutation(mutation_sandbox_dir)) {
-            std::cout << "[VENOMICA] Cognitive Forge successfully spawned new logic.\n";
+            std::cout << "[VENOMICA] Cognitive Forge successfully spawned polymorphic logic.\n";
             
             // ---------------------------------------------------------
             // 4. VENOMICA CORE: HEURISTIC ANALYSIS (SELF-AUDIT)
             // ---------------------------------------------------------
             if (!Swayam::HeuristicAnalyzer::validate_mutation_syntax(target_file)) {
-                throw std::runtime_error("Mutation rejected by Heuristic Analyzer. Malformed or unsafe logic detected.");
+                throw std::runtime_error("Heuristic Analyzer rejected the payload: Unsafe or malformed syntax.");
             }
             
             // ---------------------------------------------------------
@@ -52,18 +53,24 @@ int main() {
             // ---------------------------------------------------------
             std::string output_binary = mutation_sandbox_dir + "/mutation_core_bin";
             if (!Swayam::MutationRunner::compile_and_execute(target_file, output_binary)) {
-                throw std::runtime_error("Mutation Runner failed. The generated logic is unstable or crashed during runtime.");
+                throw std::runtime_error("Dynamic Execution crashed: Code logic is unstable.");
             }
 
         } else {
-            throw std::runtime_error("Cognitive Forge failed to generate mutation.");
+            throw std::runtime_error("Cognitive Forge critical failure: Unable to generate mutation.");
         }
         
-        std::cout << "[VENOMICA] Core Execution Cycle Complete. The Matrix is breathing.\n";
+        std::cout << "[VENOMICA] Core Execution Cycle Complete. Evolution validated.\n";
 
     } catch (const std::exception& e) {
         std::cerr << "[VENOMICA FATAL ERROR] " << e.what() << "\n";
-        return 1; // Trigger CI/CD failure if breached or rejected
+        
+        // ---------------------------------------------------------
+        // 6. VENOMICA CORE: QUARANTINE & SELF-HEALING REGISTRY
+        // ---------------------------------------------------------
+        Swayam::QuarantineRegistry::isolate_anomaly(e.what(), target_file);
+        
+        return 1; // Trigger CI/CD failure to alert the Architect
     }
 
     return 0;
