@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <stdexcept>
+#include <fstream>
+#include <filesystem>
 
 namespace Swayam {
 
@@ -42,13 +44,38 @@ private:
 
 public:
     // Dynamically compiles and executes the forged C++ mutation
-    static bool compile_and_execute(const std::string& source_file, const std::string& output_bin) {
+    static bool compile_and_execute(const std::string& source_header, const std::string& output_bin) {
         std::cout << "[VENOMICA-RUNNER] Initiating dynamic compilation of neural payload...\n";
 
-        // Command to compile the generated C++ file using GCC C++23 (No Shell)
-        std::vector<std::string> compile_cmd = {"g++", "-std=c++23", source_file, "-o", output_bin};
+        // ---------------------------------------------------------
+        // THE PHANTOM DRIVER FORGE
+        // Generates a temporary C++ runner to execute the header payload
+        // ---------------------------------------------------------
+        std::filesystem::path header_path(source_header);
+        std::string driver_path = header_path.parent_path().string() + "/mutation_driver.cpp";
+        
+        std::ofstream driver_file(driver_path);
+        if (!driver_file) {
+            std::cerr << "[VENOMICA-RUNNER FATAL] Failed to forge dynamic driver.\n";
+            return false;
+        }
+        
+        // Write the execution contract
+        driver_file << "#include \"" << header_path.filename().string() << "\"\n";
+        driver_file << "int main() {\n";
+        driver_file << "    SwayamMutation::execute_payload();\n";
+        driver_file << "    return 0;\n";
+        driver_file << "}\n";
+        driver_file.close();
+
+        // Command to compile the generated DRIVER (not just the header)
+        std::vector<std::string> compile_cmd = {"g++", "-std=c++23", driver_path, "-o", output_bin};
         
         int compile_status = run_command_safe(compile_cmd);
+        
+        // Burn the bridge (Clean up the temporary driver)
+        std::filesystem::remove(driver_path);
+
         if (compile_status != 0) {
             std::cerr << "[VENOMICA-RUNNER FATAL] Dynamic compilation failed. Syntax or Linker error in mutation.\n";
             return false;
