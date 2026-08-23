@@ -1,98 +1,73 @@
 #!/usr/bin/env python3
-"""
-scripts/safe_extract.py
-Safe artifact extraction - mitigates the "Artifact Poisoning" CodeQL
-finding (path traversal / zip-slip during artifact extraction).
-"""
-import argparse
-import fnmatch
-import os
-import shutil
-import sys
-import tarfile
 import zipfile
-import tempfile
+import os
+import sys
+import fnmatch
 
-class UnsafeArchiveError(Exception):
-    pass
+def is_safe_path(base_dir, target_path):
+    # Resolves absolute path and ensures it does not break out of base_dir
+    base_dir = os.path.abspath(base_dir)
+    target_path = os.path.abspath(target_path)
+    return target_path.startswith(base_dir + os.sep)
 
-def _is_within(base: str, target: str) -> bool:
-    base = os.path.realpath(base)
-    target = os.path.realpath(target)
-    return os.path.commonpath([base, target]) == base
-
-def _check_member(name: str, staging_dir: str) -> str:
-    if name.startswith(("/", "\\")) or (len(name) > 1 and name[1] == ":"):
-        raise UnsafeArchiveError(f"absolute path in archive: {name!r}")
-    dest = os.path.join(staging_dir, name)
-    if not _is_within(staging_dir, dest):
-        raise UnsafeArchiveError(f"path traversal in archive entry: {name!r}")
-    return dest
-
-def _extract_zip(archive_path: str, staging_dir: str):
-    with zipfile.ZipFile(archive_path) as zf:
-        for info in zf.infolist():
-            dest = _check_member(info.filename, staging_dir)
-            if info.is_dir():
-                os.makedirs(dest, exist_ok=True)
-                continue
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            with zf.open(info) as src, open(dest, "wb") as out:
-                shutil.copyfileobj(src, out)
-
-def _extract_tar(archive_path: str, staging_dir: str):
-    with tarfile.open(archive_path) as tf:
-        for member in tf.getmembers():
-            if member.issym() or member.islnk():
-                raise UnsafeArchiveError(f"symlink/hardlink in archive: {member.name!r}")
-            dest = _check_member(member.name, staging_dir)
-            if member.isdir():
-                os.makedirs(dest, exist_ok=True)
-                continue
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            src = tf.extractfile(member)
-            with open(dest, "wb") as out:
-                shutil.copyfileobj(src, out)
-
-def safe_extract(archive_path: str, dest_dir: str, allow_patterns=None):
-    os.makedirs(dest_dir, exist_ok=True)
-    with tempfile.TemporaryDirectory() as staging_dir:
-        if archive_path.endswith(".zip"):
-            _extract_zip(archive_path, staging_dir)
-        elif archive_path.endswith((".tar", ".tar.gz", ".tgz")):
-            _extract_tar(archive_path, staging_dir)
-        else:
-            raise ValueError(f"unsupported archive type: {archive_path}")
+def safe_extract(zip_path, extract_to, allowed_patterns):
+    extract_to = os.path.abspath(extract_to)
+    
+    # Resource Constraints for Zip-Bomb Defense
+    MAX_MEMBER_BYTES = 10 * 1024 * 1024   # 10MB per file max
+    MAX_TOTAL_BYTES = 50 * 1024 * 1024    # 50MB total uncompressed max
+    MAX_MEMBERS = 200                     # Max 200 files
+    
+    with zipfile.ZipFile(zip_path, 'r') as zf:
+        total_bytes = 0
         
-        moved = 0
-        for root, dirs, files in os.walk(staging_dir):
-            for fname in files:
-                staged_path = os.path.join(root, fname)
-                rel_path = os.path.relpath(staged_path, staging_dir)
-                if allow_patterns and not any(fnmatch.fnmatch(rel_path, pat) for pat in allow_patterns):
-                    print(f"[safe_extract] rejected (not allowlisted): {rel_path}", file=sys.stderr)
-                    continue
-                final_dest = os.path.join(dest_dir, rel_path)
-                if not _is_within(dest_dir, final_dest):
-                    raise UnsafeArchiveError(f"post-move path escapes dest_dir: {rel_path}")
-                os.makedirs(os.path.dirname(final_dest), exist_ok=True)
-                shutil.move(staged_path, final_dest)
-                moved += 1
-        print(f"[safe_extract] extracted {moved} file(s) into {dest_dir}")
-        return moved
+        # 1. Pre-scan: Enforce resource constraints BEFORE extraction
+        for i, member_info in enumerate(zf.infolist()):
+            if i >= MAX_MEMBERS:
+                raise ValueError(f"[FATAL] Archive exceeds member count limit ({MAX_MEMBERS})")
+            if member_info.file_size > MAX_MEMBER_BYTES:
+                raise ValueError(f"[FATAL] Member exceeds size limit: {member_info.filename}")
+            
+            total_bytes += member_info.file_size
+            if total_bytes > MAX_TOTAL_BYTES:
+                raise ValueError(f"[FATAL] Archive exceeds total size limit ({MAX_TOTAL_BYTES} bytes)")
 
-def main():
-    parser = argparse.ArgumentParser(description="Safely extract a build artifact.")
-    parser.add_argument("archive")
-    parser.add_argument("dest_dir")
-    parser.add_argument("--allow", nargs="*", default=None, help="glob patterns; only matching relative paths are kept")
-    args = parser.parse_args()
-    try:
-        safe_extract(args.archive, args.dest_dir, args.allow)
-    except UnsafeArchiveError as e:
-        print(f"[safe_extract] REJECTED archive: {e}", file=sys.stderr)
-        sys.exit(1)
+        # 2. Path Validation & Extraction Loop
+        for member_info in zf.infolist():
+            filename = member_info.filename
+            
+            # Guard: Absolute paths
+            if filename.startswith('/') or filename.startswith('\\'):
+                raise ValueError(f"[FATAL] Zip-Slip attempt: Absolute path detected -> {filename}")
+            
+            # Guard: Path Traversal (../)
+            target_path = os.path.join(extract_to, filename)
+            if not is_safe_path(extract_to, target_path):
+                raise ValueError(f"[FATAL] Zip-Slip attempt: Directory traversal detected -> {filename}")
+                
+            # Guard: Pattern Allowlist
+            matched = False
+            for pattern in allowed_patterns:
+                if fnmatch.fnmatch(filename, pattern):
+                    matched = True
+                    break
+            
+            if not matched:
+                print(f"[WARN] Skipping unauthorized file: {filename}")
+                continue
+                
+            # Extract verified member
+            zf.extract(member_info, extract_to)
+            
+    print(f"[VENOMICA] Secure extraction complete. Artifacts safely staged in {extract_to}")
 
 if __name__ == "__main__":
-    main()
-
+    if len(sys.argv) < 4 or sys.argv[3] != "--allow":
+        print("Usage: python3 safe_extract.py <zip_path> <dest_dir> --allow <patterns...>")
+        sys.exit(1)
+        
+    zip_target = sys.argv[1]
+    dest_directory = sys.argv[2]
+    patterns = sys.argv[4:]
+    
+    safe_extract(zip_target, dest_directory, patterns)
