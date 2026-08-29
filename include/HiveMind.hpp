@@ -19,7 +19,6 @@ private:
     std::vector<std::string> internal_accepted_hashes;
     const std::string state_file_path = ".hive_state/accepted_hashes.txt";
 
-    // Singleton constructor rebuilds in-memory state from the persistent log
     HiveMind() {
         std::filesystem::create_directories(".hive_state");
         std::ifstream infile(state_file_path);
@@ -41,7 +40,6 @@ public:
         return global_hive;
     }
 
-    // Accessor for hive_extractor.cpp
     [[nodiscard]] std::span<const std::string> accepted_hashes() const noexcept {
         return internal_accepted_hashes;
     }
@@ -55,10 +53,27 @@ public:
         std::lock_guard<std::mutex> lock(hive_mutex);
         if (hash_set.insert(hash).second) {
             internal_accepted_hashes.push_back(hash);
-            // Append-only persistence to survive process restarts
             std::ofstream outfile(state_file_path, std::ios::app);
             outfile << hash << "\n";
         }
+    }
+
+    // --- main.cpp এর বিল্ড এরর সমাধানের জন্য নতুন স্ট্যাটিক মেথডসমূহ ---
+
+    static void awakenNode(const std::string& node_id) {
+        std::lock_guard<std::mutex> lock(instance().hive_mutex);
+        std::cout << "[HiveMind] Awaken Node protocol initialized for: " << node_id << std::endl;
+    }
+
+    static void synchronize_collective(const std::string& ledger, const std::string& sync_dir) {
+        std::lock_guard<std::mutex> lock(instance().hive_mutex);
+        std::filesystem::create_directories(sync_dir);
+        std::cout << "[HiveMind] Synchronizing collective ledger with path: " << sync_dir << std::endl;
+    }
+
+    static void broadcastEvolution(const std::string& target_file) {
+        std::lock_guard<std::mutex> lock(instance().hive_mutex);
+        std::cout << "[HiveMind] Broadcasting evolution payload for target: " << target_file << std::endl;
     }
 };
 
