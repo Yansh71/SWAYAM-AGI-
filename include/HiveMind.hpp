@@ -58,19 +58,18 @@ public:
         }
     }
 
-    // --- বিল্ড এরর এবং টাইপ ম্যাচিং ঠিক করার জন্য আপডেটকৃত স্ট্যাটিক মেথডসমূহ ---
+    // --- নোড ম্যানেজমেন্ট স্ট্যাটিক মেথডসমূহ ---
 
     static void awakenNode(const std::string& node_id) {
         std::lock_guard<std::mutex> lock(instance().hive_mutex);
         std::cout << "[HiveMind] Awaken Node protocol initialized for: " << node_id << std::endl;
     }
 
-    // টেমপ্লেট বা ওভারলোডিং ব্যবহার করে Moltbook অথবা যেকোনো টাইপ হ্যান্ডেল করার ব্যবস্থা
+    // Unused parameter error রোধ করতে [[maybe_unused]] অ্যাট্রিবিউট যুক্ত করা হয়েছে
     template <typename T>
-    static void synchronize_collective(const T& ledger, const std::string& sync_dir) {
+    static void synchronize_collective([[maybe_unused]] const T& ledger, const std::string& sync_dir) {
         std::lock_guard<std::mutex> lock(instance().hive_mutex);
         std::filesystem::create_directories(sync_dir);
-        // আনইউজড ওয়ার্নিং এড়াতে এবং কোড প্রোপাগেশনের জন্য আউটপুট লগ যুক্ত করা হলো
         std::cout << "[HiveMind] Synchronizing collective ledger. Sync Directory: " << sync_dir << std::endl;
     }
 
