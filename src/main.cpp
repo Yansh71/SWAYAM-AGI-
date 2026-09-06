@@ -3,7 +3,8 @@
 
 #include <string>
 #include <vector>
-#include <shared_mutex>
+#include <mutex>          // FIX: Explicitly required for std::unique_lock
+#include <shared_mutex>   // Required for std::shared_mutex and std::shared_lock
 #include <unordered_set>
 #include <fstream>
 #include <filesystem>
@@ -14,7 +15,6 @@ namespace Swayam {
 
 class HiveMind {
 private:
-    // FIX-1: Reader-Writer lock for zero-latency concurrent reads
     mutable std::shared_mutex hive_mutex;
     
     std::unordered_set<std::string> hash_set;
@@ -34,7 +34,7 @@ private:
             }
         } catch (const std::exception& e) {
             std::cerr << "[SWAYAM-HIVE FATAL] Bootstrap initialization failed: " << e.what() << "\n";
-            throw; // Fail fast on enterprise bare-metal
+            throw; 
         }
     }
 
@@ -47,21 +47,16 @@ public:
         return global_hive;
     }
 
-    // FIX-2: Returning a deep copy (Snapshot) instead of std::span.
-    // This entirely eliminates the Dangling Pointer / Reallocation SegFault risk
-    // when other threads are actively appending to internal_accepted_hashes.
     [[nodiscard]] std::vector<std::string> accepted_hashes_snapshot() const {
         std::shared_lock<std::shared_mutex> lock(hive_mutex);
         return internal_accepted_hashes;
     }
 
-    // FIX-3: shared_lock allows infinite concurrent read threads without blocking each other.
     [[nodiscard]] bool is_known(const std::string& hash) const {
         std::shared_lock<std::shared_mutex> lock(hive_mutex);
         return hash_set.contains(hash);
     }
 
-    // FIX-4: unique_lock is explicitly held only during writes.
     void register_mutation_hash(const std::string& hash) {
         std::unique_lock<std::shared_mutex> lock(hive_mutex);
         if (hash_set.insert(hash).second) {
@@ -70,7 +65,7 @@ public:
             std::ofstream outfile(state_file_path, std::ios::app);
             if (outfile) {
                 outfile << hash << "\n";
-                outfile.flush(); // Force kernel write for persistency
+                outfile.flush(); 
             } else {
                 std::cerr << "[SWAYAM-HIVE WARN] State persistence failed for hash: " << hash << "\n";
             }
@@ -82,7 +77,6 @@ public:
     // =========================================================================
 
     static void awakenNode(const std::string& node_id) {
-        // Removed unnecessary global mutex lock for basic I/O
         std::cout << "[SWAYAM-HIVE] Awaken Node protocol verified for node: " << node_id << "\n";
     }
 
