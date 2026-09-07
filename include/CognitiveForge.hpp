@@ -4,8 +4,8 @@
 // SWAYAM CognitiveForge — The Neural Deep-Synthesis Engine
 // 
 // ARCHITECTURE ENFORCEMENT: True AGI Code Generation.
-// ZERO-MISTAKE FIX: Uses Regex to safely locate the execution 
-// boundary regardless of spacing or formatting styles.
+// ZERO-MISTAKE FIX: Explicit type casting for PRNG output to 
+// bypass aggressive -Werror=conversion compiler traps.
 // =============================================================
 #include <string>
 #include <vector>
@@ -24,7 +24,10 @@ private:
 
     static std::string synthesize_logic_block() {
         auto& rng = get_rng();
-        int paradigm = rng() % 3;
+        
+        // THE APEX FIX: Explicitly cast the 64-bit entropy to a 32-bit int 
+        // to mathematically silence the -Werror=conversion compiler trap.
+        int paradigm = static_cast<int>(rng() % 3);
 
         switch (paradigm) {
             case 0: 
@@ -50,15 +53,13 @@ public:
         std::string mutated_code = base_algorithm;
         std::string logic_block = synthesize_logic_block();
 
-        // Safe Injection: Regex accounts for "int main() {", "int main () \n {", etc.
+        // Safe Injection: Regex accounts for formatting variance
         std::regex main_re(R"(int\s+main\s*\([^)]*\)\s*\{)");
         std::smatch match;
         
         if (std::regex_search(mutated_code, match, main_re)) {
-            // Inject right after the opening brace of main()
             mutated_code.insert(match.position() + match.length(), logic_block);
         } else {
-            // Fallback: Append safely if main is obfuscated
             mutated_code += "\n// [SWAYAM-ORPHAN-BLOCK]\nvoid _evo_orphan() {" + logic_block + "}\n";
         }
 
