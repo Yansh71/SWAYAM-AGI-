@@ -3,9 +3,10 @@
 // =============================================================
 // SWAYAM Supervisor — The Autonomous Feedback Loop
 // 
-// ARCHITECTURE ENFORCEMENT: Workspace Anchoring. Abandons global 
-// chdir("/") root amnesia in favor of chdir(workspace) to ensure 
-// all internal ledgers and quarantine modules resolve paths correctly.
+// ARCHITECTURE ENFORCEMENT: Workspace Anchoring via chdir(workspace).
+// KILLS DESYNC PARADOX: Assimilates into HiveMind ONLY after a 
+// mathematically verified and successful Git upload.
+// KILLS HASH-AMNESIA: Uses persistent FNV-1a hashing for EVO IDs.
 // =============================================================
 #include "core.hpp"
 #include "CognitiveForge.hpp"
@@ -15,6 +16,7 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
+#include <cstdint>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/prctl.h>
@@ -35,8 +37,6 @@ private:
         if (setgid(getgid()) != 0 || setuid(getuid()) != 0) { _exit(127); }
         if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) { _exit(127); }
         
-        // THE APEX RUNTIME FIX: Anchor daemon to absolute workspace, NOT "/"
-        // Ensures HiveMind and QuarantineRegistry don't crash with Permission Denied
         if (chdir(workspace.c_str()) != 0) { _exit(127); }
         
         umask(077);
@@ -55,29 +55,43 @@ private:
         } while (wpid == -1 && errno == EINTR);
     }
 
+    // THE APEX FIX: Deterministic Hash to keep EVO_IDs stable across reboots
+    static uint64_t persistent_hash(const std::string& text) noexcept {
+        uint64_t hash = 0xcbf29ce484222325ULL;
+        for (char c : text) {
+            hash ^= static_cast<uint8_t>(c);
+            hash *= 0x100000001b3ULL;
+        }
+        return hash;
+    }
+
 public:
     static void orchestrate_evolution(AtomicGuard& guard, const std::string& base_algorithm) {
         
         std::string workspace = std::filesystem::current_path().string();
 
         std::cout << "[SWAYAM-SUPERVISOR] Enforcing STRICT POSIX boundaries...\n";
-        enforce_process_boundaries(workspace); // Passing spatial awareness down
+        enforce_process_boundaries(workspace);
 
         std::string evolved_code = CognitiveForge::evolve_codebase(base_algorithm);
-        size_t code_hash = std::hash<std::string>{}(evolved_code);
+        
+        // Using persistent_hash instead of volatile std::hash
+        uint64_t code_hash = persistent_hash(evolved_code);
         std::string mutation_id = "EVO_" + std::to_string(code_hash);
 
         bool success = MutationRunner::evaluate_and_execute(guard, evolved_code, mutation_id, workspace);
 
         if (success) {
-            HiveMind::instance().register_mutation_hash(std::to_string(code_hash));
-            
             std::string target_file = workspace + "/.swayam_vault/mut_" + mutation_id + ".cpp";
             
+            // THE APEX FIX: Logical Sync Check. ONLY assimilate if upload succeeds.
             if (GitCortex::publish_evolution(mutation_id, target_file, workspace)) {
                 std::cout << "[SWAYAM-SUPERVISOR] Neural Upload Verified and Queued.\n";
+                
+                // Moved HiveMind registration HERE. Zero Desync Paradox!
+                HiveMind::register_mutation_hash(std::to_string(code_hash), workspace);
             } else {
-                std::cerr << "[SWAYAM-SUPERVISOR] Neural Upload Failed.\n";
+                std::cerr << "[SWAYAM-SUPERVISOR] Neural Upload Failed. Dropping from HiveMind to enforce retry.\n";
             }
 
             std::error_code ec;
