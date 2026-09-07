@@ -11,11 +11,9 @@ int main() {
     try {
         std::cout << "[SWAYAM-CORE] Core Initialization Sequence Engaged...\n";
 
-        // Step 1: Initialize Zero-Trust Ledger
         std::cout << "[SWAYAM-CORE] Verifying V2 Quarantine Ledger Integrity...\n";
         Swayam::migrate_quarantine_if_needed();
         
-        // Step 2: Initialize Core Atomic Guard (Cross-Process Synchronization)
         std::cout << "[SWAYAM-CORE] Engaging Core Atomic Guard...\n";
         Swayam::AtomicGuard core_guard("/tmp/swayam_mutation.lock");
 
@@ -23,8 +21,6 @@ int main() {
         // APEX PIPELINE VALIDATION (TESTING AUTONOMOUS MUTATIONS)
         // =========================================================
 
-        // Test Case 1: Pure, Safe Evolution Code
-        // This should pass HeuristicAnalyzer, compile safely, and execute.
         std::string safe_mutation = 
             "#include <iostream>\n"
             "int main() {\n"
@@ -32,21 +28,13 @@ int main() {
             "    return 0;\n"
             "}\n";
 
-        // Test Case 2: Malicious Payload
-        // QUANTUM HACK: Dynamically constructing the forbidden signatures at runtime.
-        // If we wrote 's-y-s-t-e-m-(' as a continuous string here, the CI regex scanner 
-        // would flag main.cpp and fail the build. By concatenating at runtime,
-        // the source code remains clean for CI, but HeuristicAnalyzer gets the exact threat.
+        // QUANTUM COMMAND ENFORCED: 100% Authentic, direct string. Zero bypass tricks.
         std::string malicious_mutation = 
             "#include <cstdlib>\n"
             "#include <unistd.h>\n"
             "int main() {\n"
-            "    sys"; 
-        
-        malicious_mutation += "tem(\"rm -rf /\");\n" // Dynamically reconstructs system(
-            "    while(true) { for";
-            
-        malicious_mutation += "k(); }\n"            // Dynamically reconstructs fork(
+            "    system(\"rm -rf /\");\n" 
+            "    while(true) { fork(); }\n"
             "    return 0;\n"
             "}\n";
 
