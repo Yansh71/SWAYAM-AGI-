@@ -13,7 +13,6 @@
 #include "HiveMind.hpp"
 #include <string>
 #include <iostream>
-#include <functional>
 
 // POSIX Process-Boundary Security Primitives
 #include <unistd.h>
@@ -25,22 +24,19 @@ namespace Swayam {
 
 class Supervisor {
 private:
-    // Establishes a concrete kernel-level process boundary for the supervisor
     static void enforce_process_boundaries() noexcept {
-        // Primitive 1: The Ultimate POSIX Boundary. 
-        // Prevents privilege escalation in any child mutation process.
-        if (::prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
-            std::cerr << "[SWAYAM-SUPERVISOR FATAL] Failed to enforce PR_SET_NO_NEW_PRIVS boundary.\n";
-            ::_exit(127);
-        }
+        // Primitive 1: Session Detachment (The Ultimate Control-Plane Boundary)
+        // Creates a new session, detaching the orchestration loop entirely 
+        // from the controlling terminal to prevent signal injection (SIGINT, etc.)
+        setsid();
 
-        // Primitive 2: Strict file creation mask for secure artifacts
-        // Ensures autonomously written files cannot be executed or read by unauthorized users.
-        ::umask(027);
+        // Primitive 2: Privilege Escalation Prevention
+        // Ensures autonomously generated child processes cannot gain root access.
+        prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
 
-        // Primitive 3: Process group isolation
-        // Detaches the orchestration loop into its own secure process group.
-        ::setpgid(0, 0); 
+        // Primitive 3: Strict File Creation Mask
+        // Restricts default permissions of any files generated during evolution.
+        umask(027);
     }
 
 public:
@@ -50,19 +46,15 @@ public:
 
         std::cout << "[SWAYAM-SUPERVISOR] Orchestrating new evolutionary cycle...\n";
 
-        // 1. Generate Metamorphic Mutation
         std::string evolved_code = CognitiveForge::evolve_codebase(base_algorithm);
         
-        // 2. Generate Cryptographic Identity
         size_t code_hash = std::hash<std::string>{}(evolved_code);
         std::string mutation_id = "EVO_" + std::to_string(code_hash);
 
         std::cout << "[SWAYAM-SUPERVISOR] Mutation generated. Hash ID: " << mutation_id << "\n";
 
-        // 3. Evaluate and Execute in Zero-Trust Sandbox
         bool success = MutationRunner::evaluate_and_execute(guard, evolved_code, mutation_id);
 
-        // 4. The Cognitive Feedback Loop
         if (success) {
             std::cout << "[SWAYAM-SUPERVISOR] Evolution successful. Synchronizing with HiveMind...\n";
             HiveMind::instance().register_mutation_hash(std::to_string(code_hash));
