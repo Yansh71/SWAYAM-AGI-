@@ -7,6 +7,7 @@
 // KILLS DESYNC PARADOX: Assimilates into HiveMind ONLY after a 
 // mathematically verified and successful Git upload.
 // KILLS HASH-AMNESIA: Uses persistent FNV-1a hashing for EVO IDs.
+// KILLS SINGLETON BUG: Direct static invocation for HiveMind.
 // =============================================================
 #include "core.hpp"
 #include "CognitiveForge.hpp"
@@ -55,7 +56,7 @@ private:
         } while (wpid == -1 && errno == EINTR);
     }
 
-    // THE APEX FIX: Deterministic Hash to keep EVO_IDs stable across reboots
+    // Deterministic Hash to keep EVO_IDs stable across server reboots
     static uint64_t persistent_hash(const std::string& text) noexcept {
         uint64_t hash = 0xcbf29ce484222325ULL;
         for (char c : text) {
@@ -75,7 +76,6 @@ public:
 
         std::string evolved_code = CognitiveForge::evolve_codebase(base_algorithm);
         
-        // Using persistent_hash instead of volatile std::hash
         uint64_t code_hash = persistent_hash(evolved_code);
         std::string mutation_id = "EVO_" + std::to_string(code_hash);
 
@@ -84,11 +84,11 @@ public:
         if (success) {
             std::string target_file = workspace + "/.swayam_vault/mut_" + mutation_id + ".cpp";
             
-            // THE APEX FIX: Logical Sync Check. ONLY assimilate if upload succeeds.
+            // Sync Check: ONLY assimilate if upload succeeds.
             if (GitCortex::publish_evolution(mutation_id, target_file, workspace)) {
                 std::cout << "[SWAYAM-SUPERVISOR] Neural Upload Verified and Queued.\n";
                 
-                // Moved HiveMind registration HERE. Zero Desync Paradox!
+                // THE APEX FIX: Direct static call (NO instance() needed)
                 HiveMind::register_mutation_hash(std::to_string(code_hash), workspace);
             } else {
                 std::cerr << "[SWAYAM-SUPERVISOR] Neural Upload Failed. Dropping from HiveMind to enforce retry.\n";
