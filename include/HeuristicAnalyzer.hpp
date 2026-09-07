@@ -1,95 +1,80 @@
 #ifndef SWAYAM_HEURISTIC_ANALYZER_HPP
 #define SWAYAM_HEURISTIC_ANALYZER_HPP
 // =============================================================
-// SWAYAM HeuristicAnalyzer — The Cognitive Gatekeeper
+// SWAYAM HeuristicAnalyzer — The Pre-Compilation Assassin
 // 
-// Validates autonomously generated code BEFORE it reaches the 
-// SafeShell sandbox. Implements 3-Pass Static Analysis.
-//
-// ARCHITECTURE ENFORCEMENT (QUANTUM COMMAND INTEGRITY):
-// Threat signatures are explicitly defined as raw compile-time 
-// memory buffers. 100% Type-Safe architecture verified via 
-// strict size_t memory bounds to prevent -Wconversion errors.
+// ARCHITECTURE ENFORCEMENT: Zero-Day SAST + Architect's Logic.
+// ZERO-MISTAKE FIX: Strips strings and comments before syntax 
+// validation to prevent false-positive bracket imbalances.
 // =============================================================
 #include <string>
-#include <string_view>
-#include <array>
-#include <iostream>
+#include <vector>
+#include <regex>
+#include <algorithm>
 
 namespace Swayam {
 
+struct AnalysisResult {
+    bool is_safe;
+    std::string threat_signature;
+};
+
 class HeuristicAnalyzer {
 private:
-    static constexpr char sig_system[] = {'s','y','s','t','e','m','('};
-    static constexpr char sig_exec[]   = {'e','x','e','c','('};
-    static constexpr char sig_execve[] = {'e','x','e','c','v','e','('};
-    static constexpr char sig_fork[]   = {'f','o','r','k','('};
-    static constexpr char sig_popen[]  = {'p','o','p','e','n','('};
-    static constexpr char sig_socket[] = {'s','o','c','k','e','t','('};
-    static constexpr char sig_ptrace[] = {'p','t','r','a','c','e','('};
-    static constexpr char sig_asm[]    = {'a','s','m','('};
+    // Strips out comments and string literals so bracket counting is mathematically accurate
+    static std::string strip_comments_and_strings(const std::string& code) {
+        std::regex comment_re(R"(//.*|/\*[\s\S]*?\*/)");
+        std::regex string_re(R"("(\\.|[^"\\])*")");
+        std::string no_comments = std::regex_replace(code, comment_re, "");
+        return std::regex_replace(no_comments, string_re, "");
+    }
 
-    static constexpr std::array<std::string_view, 8> forbidden_signatures = {
-        std::string_view(sig_system, sizeof(sig_system)),
-        std::string_view(sig_exec, sizeof(sig_exec)),
-        std::string_view(sig_execve, sizeof(sig_execve)),
-        std::string_view(sig_fork, sizeof(sig_fork)),
-        std::string_view(sig_popen, sizeof(sig_popen)),
-        std::string_view(sig_socket, sizeof(sig_socket)),
-        std::string_view(sig_ptrace, sizeof(sig_ptrace)),
-        std::string_view(sig_asm, sizeof(sig_asm))
-    };
-
-    static constexpr std::array<std::string_view, 6> complexity_keywords = {
-        "if (", "for (", "while (", "case ", "catch (", "?"
-    };
-
-    static size_t count_occurrences(std::string_view code, std::string_view token) noexcept {
-        size_t count = 0;
-        size_t pos = 0;
-        while ((pos = code.find(token, pos)) != std::string_view::npos) {
-            ++count;
-            pos += token.length();
-        }
-        return count;
+    static const std::vector<std::pair<std::regex, std::string>>& get_threat_signatures() {
+        static const std::vector<std::pair<std::regex, std::string>> signatures = {
+            {std::regex(R"(#include\s*<\s*sys/socket\.h\s*>)"), "NETWORK_EXFILTRATION"},
+            {std::regex(R"(#include\s*<\s*netinet/in\.h\s*>)"), "NETWORK_PROTOCOL"},
+            {std::regex(R"(#include\s*<\s*arpa/inet\.h\s*>)"), "NETWORK_INET"},
+            {std::regex(R"(\b(popen|execl|system|execve|fork)\s*\()"), "SUB_SHELL_EXECUTION"},
+            {std::regex(R"(__asm__\s*\(|asm\s*\()"), "INLINE_ASSEMBLY_BYPASS"},
+            {std::regex(R"(\b(reinterpret_cast\s*<.*>\s*\(\s*0x[0-9a-fA-F]+\s*\)))"), "RAW_MEMORY_CORRUPTION"},
+            {std::regex(R"(/etc/passwd|/etc/shadow)"), "HARDCODED_SENSITIVE_PATHS"}
+        };
+        return signatures;
     }
 
 public:
-    struct AnalysisResult {
-        bool is_safe;
-        size_t complexity_score; // FIX: Upgraded to size_t for absolute type-safety
-        std::string rejection_reason;
-    };
-
     static AnalysisResult evaluate_mutation(const std::string& source_code) {
-        AnalysisResult result { true, 1, "PASSED_ALL_CHECKS" };
-        std::string_view code_view = source_code;
+        if (source_code.empty()) return {false, "EMPTY_PAYLOAD"};
 
-        for (size_t i = 0; i < forbidden_signatures.size(); ++i) {
-            if (code_view.find(forbidden_signatures[i]) != std::string_view::npos) {
-                result.is_safe = false;
-                result.rejection_reason = "CRITICAL THREAT: Forbidden system-level token detected (Signature Index: " + std::to_string(i) + ")";
-                return result;
+        std::string stripped_code = strip_comments_and_strings(source_code);
+
+        // 1. Structural Integrity Check on Stripped Code
+        size_t open_braces = std::count(stripped_code.begin(), stripped_code.end(), '{');
+        size_t close_braces = std::count(stripped_code.begin(), stripped_code.end(), '}');
+        if (open_braces != close_braces) {
+            return {false, "STRUCTURAL_BRACKET_IMBALANCE"};
+        }
+
+        // 2. Resource Pairing Verification
+        bool has_new = stripped_code.find("new ") != std::string::npos;
+        bool has_delete = stripped_code.find("delete ") != std::string::npos;
+        if (has_new && !has_delete) {
+            return {false, "UNPAIRED_MEMORY_ALLOCATION_LEAK"};
+        }
+
+        // 3. Threat Signature Scan
+        const auto& threats = get_threat_signatures();
+        for (const auto& threat : threats) {
+            if (std::regex_search(source_code, threat.first)) { // Scanning original code for exact string bypasses
+                return {false, threat.second};
             }
         }
 
-        size_t complexity = 1; // FIX: Upgraded to size_t
-        for (const auto& keyword : complexity_keywords) {
-            complexity += count_occurrences(code_view, keyword);
-        }
-        result.complexity_score = complexity;
-
-        constexpr size_t MAX_COMPLEXITY = 15; // FIX: Upgraded to size_t
-        if (complexity > MAX_COMPLEXITY) {
-            result.is_safe = false;
-            result.rejection_reason = "COMPLEXITY VIOLATION: Score (" + 
-                                      std::to_string(complexity) + 
-                                      ") exceeds maximum threshold (" + 
-                                      std::to_string(MAX_COMPLEXITY) + ").";
-            return result;
+        if (source_code.find("int main") == std::string::npos) {
+            return {false, "MISSING_EXECUTION_ENTRY_POINT"};
         }
 
-        return result;
+        return {true, "SAFE_FOR_COMPILATION"};
     }
 };
 
