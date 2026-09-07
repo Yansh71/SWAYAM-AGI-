@@ -4,9 +4,8 @@
 // SWAYAM MutationRunner — The Apex Execution Pipeline
 // 
 // Bridges all core components. Evaluates raw autonomous code 
-// via HeuristicAnalyzer, compiles strict C++23, and executes 
-// the binary inside the SafeShell zero-trust sandbox under 
-// the absolute synchronization of MutationLease.
+// via HeuristicAnalyzer, compiles strict C++23 (Shell-Free), 
+// and executes the binary inside the SafeShell zero-trust sandbox.
 // =============================================================
 #include "core.hpp"
 #include "SafeShell.hpp"
@@ -18,6 +17,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <filesystem>
+#include <cerrno>
+#include <cstring>
 
 namespace Swayam {
 
@@ -27,7 +28,7 @@ public:
         
         std::cout << "[SWAYAM-RUNNER] Initiating Pipeline for Mutation: " << mutation_id << "\n";
 
-        // 1. The Cognitive Gatekeeper (Heuristic Analysis)
+        // 1. The Cognitive Gatekeeper
         auto analysis = HeuristicAnalyzer::evaluate_mutation(source_code);
         if (!analysis.is_safe) {
             std::cerr << "[SWAYAM-RUNNER] BLOCKED by HeuristicAnalyzer: " << analysis.rejection_reason << "\n";
@@ -54,12 +55,43 @@ public:
             return false;
         }
 
-        // 4. Strict Compilation (C++23 Bare-Metal)
-        std::cout << "[SWAYAM-RUNNER] Compiling Mutation...\n";
-        std::string compile_cmd = "c++ -std=c++23 -O3 -Wall -Werror " + src_path + " -o " + bin_path;
-        int compile_status = std::system(compile_cmd.c_str());
+        // 4. Strict Compilation (Zero-Shell Execution)
+        std::cout << "[SWAYAM-RUNNER] Compiling Mutation (Bare-Metal POSIX)...\n";
         
-        if (compile_status != 0) {
+        pid_t compile_pid = fork();
+        if (compile_pid < 0) {
+            std::cerr << "[SWAYAM-RUNNER] FATAL: fork() failed for compilation process.\n";
+            std::filesystem::remove(src_path);
+            return false;
+        }
+
+        if (compile_pid == 0) {
+            // CHILD PROCESS: Execute compiler directly bypassing /bin/sh
+            const char* args[] = {
+                "c++",
+                "-std=c++23",
+                "-O3",
+                "-Wall",
+                "-Werror",
+                src_path.c_str(),
+                "-o",
+                bin_path.c_str(),
+                nullptr
+            };
+            execvp("c++", const_cast<char* const*>(args));
+            
+            std::cerr << "[SWAYAM-RUNNER] execvp() failed to launch compiler: " << std::strerror(errno) << "\n";
+            ::_exit(127);
+        }
+
+        // SUPERVISOR PROCESS: Wait for compilation
+        int compile_status = 0;
+        pid_t wpid;
+        do {
+            wpid = ::waitpid(compile_pid, &compile_status, 0);
+        } while (wpid == -1 && errno == EINTR);
+
+        if (wpid == -1 || !WIFEXITED(compile_status) || WEXITSTATUS(compile_status) != 0) {
             std::cerr << "[SWAYAM-RUNNER] Compilation Failed. Routing to Quarantine.\n";
             quarantine(src_path, 255); // 255 designated for compilation failure
             std::filesystem::remove(src_path);
@@ -71,41 +103,38 @@ public:
         bool execution_success = false;
 
         try {
-            MutationLease lease(guard); // Acquires cross-process and atomic locks
+            MutationLease lease(guard); 
             std::cout << "[SWAYAM-RUNNER] Lease Acquired. Forking Sandbox environment...\n";
 
-            pid_t pid = fork();
-            if (pid < 0) {
+            pid_t exec_pid = fork();
+            if (exec_pid < 0) {
                 throw std::runtime_error("[SWAYAM-RUNNER] fork() system call failed.");
             }
 
-            if (pid == 0) {
-                // CHILD PROCESS: Absolute Lockdown Mode
-                SafeShell::lockdown_process(2, 128); // 2 seconds CPU, 128 MB RAM max
+            if (exec_pid == 0) {
+                SafeShell::lockdown_process(2, 128); 
                 
                 const char* args[] = {bin_path.c_str(), nullptr};
                 execv(bin_path.c_str(), const_cast<char* const*>(args));
                 
-                // If execv fails
                 std::cerr << "[SWAYAM-SHELL] execv() failed: " << std::strerror(errno) << "\n";
                 ::_exit(127);
             }
 
-            // SUPERVISOR PROCESS: Monitoring
-            int status = 0;
-            pid_t result;
+            int run_status = 0;
+            pid_t run_wpid;
             do {
-                result = ::waitpid(pid, &status, 0);
-            } while (result == -1 && errno == EINTR);
+                run_wpid = ::waitpid(exec_pid, &run_status, 0);
+            } while (run_wpid == -1 && errno == EINTR);
 
-            if (result == -1) {
+            if (run_wpid == -1) {
                 std::cerr << "[SWAYAM-RUNNER] waitpid() failed: " << std::strerror(errno) << "\n";
-            } else if (WIFSIGNALED(status)) {
-                int sig = WTERMSIG(status);
+            } else if (WIFSIGNALED(run_status)) {
+                int sig = WTERMSIG(run_status);
                 std::cerr << "[SWAYAM-RUNNER] ALERT: Sandbox terminated mutation via POSIX Signal: " << sig << "\n";
                 quarantine(src_path, sig);
-            } else if (WIFEXITED(status)) {
-                int exit_code = WEXITSTATUS(status);
+            } else if (WIFEXITED(run_status)) {
+                int exit_code = WEXITSTATUS(run_status);
                 if (exit_code == 0) {
                     std::cout << "[SWAYAM-RUNNER] Mutation executed flawlessly.\n";
                     execution_success = true;
