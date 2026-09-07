@@ -4,8 +4,7 @@
 // SWAYAM CognitiveForge — The Neural Deep-Synthesis Engine
 // 
 // ARCHITECTURE ENFORCEMENT: True AGI Code Generation.
-// ZERO-MISTAKE FIX: Explicit type casting for PRNG output to 
-// bypass aggressive -Werror=conversion compiler traps.
+// KILLS RACE CONDITIONS: Restored thread_local RNG context.
 // =============================================================
 #include <string>
 #include <vector>
@@ -18,15 +17,14 @@ namespace Swayam {
 class CognitiveForge {
 private:
     static std::mt19937_64& get_rng() noexcept {
-        static std::mt19937_64 rng(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+        // THE APEX FIX: thread_local guarantees safe scaling for parallel evolutionary trees
+        thread_local std::mt19937_64 rng(std::chrono::high_resolution_clock::now().time_since_epoch().count());
         return rng;
     }
 
     static std::string synthesize_logic_block() {
         auto& rng = get_rng();
         
-        // THE APEX FIX: Explicitly cast the 64-bit entropy to a 32-bit int 
-        // to mathematically silence the -Werror=conversion compiler trap.
         int paradigm = static_cast<int>(rng() % 3);
 
         switch (paradigm) {
@@ -53,7 +51,6 @@ public:
         std::string mutated_code = base_algorithm;
         std::string logic_block = synthesize_logic_block();
 
-        // Safe Injection: Regex accounts for formatting variance
         std::regex main_re(R"(int\s+main\s*\([^)]*\)\s*\{)");
         std::smatch match;
         
