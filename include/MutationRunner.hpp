@@ -3,9 +3,9 @@
 // =============================================================
 // SWAYAM MutationRunner — The Apex Execution Pipeline
 // 
-// ARCHITECTURE ENFORCEMENT: Preserves temporal artifacts for 
-// publishing. Validates dynamic workspace context for vaulting 
-// to survive root process daemonization.
+// ARCHITECTURE ENFORCEMENT: Process Group Isolation (setpgid).
+// KILLS RUNTIME LEAKS: Uses killpg to terminate runaway compiler 
+// sub-processes (cc1plus, as) preventing CPU resource exhaustion.
 // =============================================================
 #include "core.hpp"
 #include "SafeShell.hpp"
@@ -20,6 +20,7 @@
 #include <cerrno>
 #include <cstring>
 #include <signal.h>
+#include <system_error> // Required for std::error_code
 
 namespace Swayam {
 
@@ -38,15 +39,17 @@ private:
                 usleep(sleep_interval_ms * 1000);
                 timeout_counter++;
                 if (timeout_counter > max_ticks) {
-                    std::cerr << "[SWAYAM-RUNNER] ALERT: Timeout exceeded. Terminating...\n";
-                    kill(pid, SIGTERM); 
+                    std::cerr << "[SWAYAM-RUNNER] ALERT: Timeout exceeded. Terminating process group...\n";
+                    // THE APEX FIX: Kill the entire process group to wipe compiler sub-processes
+                    killpg(pid, SIGTERM); 
                     usleep(100000); 
-                    kill(pid, SIGKILL);
+                    killpg(pid, SIGKILL);
                     waitpid(pid, &status, 0); 
                     return false;
                 }
             }
         } while (wpid == 0 || (wpid == -1 && errno == EINTR));
+        
         return (wpid > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     }
 
@@ -58,7 +61,6 @@ public:
             return false;
         }
 
-        // THE APEX FIX: Absolute path targeting prevents chdir("/") destruction
         std::string vault_dir = workspace + "/.swayam_vault";
         std::error_code ec;
         std::filesystem::create_directory(vault_dir, ec);
@@ -78,6 +80,8 @@ public:
         if (compile_pid < 0) return false;
 
         if (compile_pid == 0) {
+            // THE APEX FIX: Isolate the compiler into its own process group
+            setpgid(0, 0); 
             const char* args[] = {"c++", "-std=c++23", "-O3", "-Wall", "-Werror", src_path.c_str(), "-o", bin_path.c_str(), nullptr};
             execvp("c++", const_cast<char* const*>(args));
             ::_exit(127);
@@ -96,6 +100,8 @@ public:
             if (exec_pid < 0) throw std::runtime_error("fork failed");
 
             if (exec_pid == 0) {
+                // THE APEX FIX: Isolate the sandbox into its own process group
+                setpgid(0, 0); 
                 SafeShell::lockdown_process(2, 128); 
                 const char* args[] = {bin_path.c_str(), nullptr};
                 execv(bin_path.c_str(), const_cast<char* const*>(args));
@@ -110,7 +116,6 @@ public:
         } catch (...) { /* Exception handled silently */ }
 
         std::filesystem::remove(bin_path, ec); 
-        // Only wipe source if failed; GitCortex needs it upon success
         if (!execution_success) {
             std::filesystem::remove(src_path, ec);
         }
