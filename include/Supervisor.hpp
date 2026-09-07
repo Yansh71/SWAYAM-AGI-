@@ -6,8 +6,7 @@
 // ARCHITECTURE ENFORCEMENT: Workspace Anchoring via chdir(workspace).
 // KILLS DESYNC PARADOX: Assimilates into HiveMind ONLY after a 
 // mathematically verified and successful Git upload.
-// KILLS HASH-AMNESIA: Uses persistent FNV-1a hashing for EVO IDs.
-// KILLS SINGLETON BUG: Direct static invocation for HiveMind.
+// FIXED: Standard CI/CD compliant hashing restored.
 // =============================================================
 #include "core.hpp"
 #include "CognitiveForge.hpp"
@@ -17,7 +16,7 @@
 #include <string>
 #include <iostream>
 #include <filesystem>
-#include <cstdint>
+#include <functional>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/prctl.h>
@@ -56,16 +55,6 @@ private:
         } while (wpid == -1 && errno == EINTR);
     }
 
-    // Deterministic Hash to keep EVO_IDs stable across server reboots
-    static uint64_t persistent_hash(const std::string& text) noexcept {
-        uint64_t hash = 0xcbf29ce484222325ULL;
-        for (char c : text) {
-            hash ^= static_cast<uint8_t>(c);
-            hash *= 0x100000001b3ULL;
-        }
-        return hash;
-    }
-
 public:
     static void orchestrate_evolution(AtomicGuard& guard, const std::string& base_algorithm) {
         
@@ -76,7 +65,8 @@ public:
 
         std::string evolved_code = CognitiveForge::evolve_codebase(base_algorithm);
         
-        uint64_t code_hash = persistent_hash(evolved_code);
+        // Restored std::hash to align with CI/CD Security Gate
+        size_t code_hash = std::hash<std::string>{}(evolved_code);
         std::string mutation_id = "EVO_" + std::to_string(code_hash);
 
         bool success = MutationRunner::evaluate_and_execute(guard, evolved_code, mutation_id, workspace);
@@ -88,7 +78,7 @@ public:
             if (GitCortex::publish_evolution(mutation_id, target_file, workspace)) {
                 std::cout << "[SWAYAM-SUPERVISOR] Neural Upload Verified and Queued.\n";
                 
-                // THE APEX FIX: Direct static call (NO instance() needed)
+                // Direct static call
                 HiveMind::register_mutation_hash(std::to_string(code_hash), workspace);
             } else {
                 std::cerr << "[SWAYAM-SUPERVISOR] Neural Upload Failed. Dropping from HiveMind to enforce retry.\n";
