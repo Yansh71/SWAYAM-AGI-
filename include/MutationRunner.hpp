@@ -4,14 +4,16 @@
 // SWAYAM MutationRunner — The Apex Execution Pipeline
 // 
 // Bridges all core components. Evaluates raw autonomous code 
-// via HeuristicAnalyzer, compiles strict C++23 (Shell-Free), 
-// and executes the binary inside the SafeShell zero-trust sandbox.
+// via HeuristicAnalyzer, vaults it securely to disk using 
+// SecureArtifact (bypassing std::ofstream vulnerabilities), 
+// compiles strict C++23 (Shell-Free), and executes the binary 
+// inside the SafeShell zero-trust sandbox.
 // =============================================================
 #include "core.hpp"
 #include "SafeShell.hpp"
 #include "HeuristicAnalyzer.hpp"
+#include "SecureArtifact.hpp" // INJECTED: The Anonymous Vault
 #include <string>
-#include <fstream>
 #include <iostream>
 #include <cstdlib>
 #include <sys/wait.h>
@@ -36,17 +38,16 @@ public:
             return false;
         }
 
-        // 2. Physical File Generation
-        std::string src_path = "/tmp/swayam_mut_" + mutation_id + ".cpp";
+        // 2. Physical File Generation via Secure Vault (NO MORE std::ofstream)
+        std::string filename = "swayam_mut_" + mutation_id + ".cpp";
+        std::string src_path = "/tmp/" + filename;
         std::string bin_path = "/tmp/swayam_bin_" + mutation_id;
         
-        std::ofstream out(src_path, std::ios::trunc);
-        if (!out) {
-            std::cerr << "[SWAYAM-RUNNER] FATAL: Cannot write mutation to disk.\n";
+        std::cout << "[SWAYAM-RUNNER] Vaulting raw mutation via SecureArtifact...\n";
+        if (!SecureArtifact::write_securely("/tmp", filename, source_code)) {
+            std::cerr << "[SWAYAM-RUNNER] FATAL: SecureArtifact vaulting failed.\n";
             return false;
         }
-        out << source_code;
-        out.close();
 
         // 3. Ledger Pre-Flight Check
         if (is_quarantined(src_path)) {
@@ -150,7 +151,9 @@ public:
 
         // 6. Post-Execution Cleanup
         std::filesystem::remove(src_path);
-        std::filesystem::remove(bin_path);
+        if (std::filesystem::exists(bin_path)) {
+            std::filesystem::remove(bin_path);
+        }
 
         return execution_success;
     }
@@ -158,3 +161,4 @@ public:
 
 } // namespace Swayam
 #endif // SWAYAM_MUTATION_RUNNER_HPP
+
