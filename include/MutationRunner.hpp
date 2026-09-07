@@ -4,14 +4,13 @@
 // SWAYAM MutationRunner — The Apex Execution Pipeline
 // 
 // ARCHITECTURE ENFORCEMENT: Process Group Isolation (setpgid).
-// ZERO-MISTAKE FIX: Perfectly synchronized with the latest 
-// QuarantineRegistry API for deterministic threat logging.
+// KILLS COMPILATION BOMB: Injected missing <system_error> header.
 // =============================================================
 #include "core.hpp"
 #include "SafeShell.hpp"
 #include "HeuristicAnalyzer.hpp"
 #include "SecureArtifact.hpp"
-#include "QuarantineRegistry.hpp" // Fully Linked
+#include "QuarantineRegistry.hpp"
 #include <string>
 #include <iostream>
 #include <cstdlib>
@@ -21,6 +20,7 @@
 #include <cerrno>
 #include <cstring>
 #include <signal.h>
+#include <system_error> // THE APEX FIX: Prevents C++23 build crash
 
 namespace Swayam {
 
@@ -55,11 +55,9 @@ private:
 public:
     static bool evaluate_and_execute(AtomicGuard& guard, const std::string& source_code, const std::string& mutation_id, const std::string& workspace) {
         
-        // 1. The Pre-Compilation Assassin Check
         auto analysis = HeuristicAnalyzer::evaluate_mutation(source_code);
         if (!analysis.is_safe) {
             std::cerr << "[SWAYAM-RUNNER] Heuristic Reject: " << analysis.threat_signature << "\n";
-            // PERFECT SYNC: Calling the precise Quarantine API
             QuarantineRegistry::ban_mutation(source_code, 254, workspace);
             return false;
         }
@@ -75,13 +73,11 @@ public:
         
         if (!SecureArtifact::write_securely(vault_dir, filename, source_code)) return false;
         
-        // Check if previously banned
         if (QuarantineRegistry::is_banned(source_code, workspace)) { 
             std::filesystem::remove(src_path, ec); 
             return false; 
         }
 
-        // 2. Compilation Phase
         pid_t compile_pid = fork();
         if (compile_pid < 0) return false;
 
@@ -93,12 +89,11 @@ public:
         }
 
         if (!enforce_timeout(compile_pid, 60000)) {
-            QuarantineRegistry::ban_mutation(source_code, 255, workspace); // Ban compilation timeout
+            QuarantineRegistry::ban_mutation(source_code, 255, workspace); 
             std::filesystem::remove(src_path, ec);
             return false;
         }
 
-        // 3. Execution Phase
         bool execution_success = false;
         try {
             MutationLease lease(guard); 
@@ -116,7 +111,7 @@ public:
             if (enforce_timeout(exec_pid, 3000)) {
                 execution_success = true;
             } else {
-                QuarantineRegistry::ban_mutation(source_code, 1, workspace); // Ban execution failure
+                QuarantineRegistry::ban_mutation(source_code, 1, workspace); 
             }
         } catch (...) {}
 
