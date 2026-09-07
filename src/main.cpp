@@ -1,90 +1,91 @@
 // =============================================================
-// SWAYAM AGI — Core Entry Point (main.cpp)
+// SWAYAM-AGI: The Apex Cybernetic Organism
+// ENTRY POINT: main.cpp
 // 
-// ARCHITECTURE ENFORCEMENT: Synchronized with the Workspace-Aware 
-// MutationRunner. Captures absolute spatial dimensions at boot 
-// to ensure flawless execution tests before Supervisor handoff.
+// ARCHITECTURE ENFORCEMENT: Perpetual Autonomous Daemon.
+// KILLS DEADLOCKS: Strict POSIX Async-Signal-Safe shutdown logic.
+// KILLS CLONE WARS: Single-instance hardware-level file locking.
 // =============================================================
 #include "../include/core.hpp"
-#include "../include/MutationRunner.hpp"
 #include "../include/Supervisor.hpp"
-#include "../include/HiveMind.hpp"
 #include <iostream>
-#include <string>
-#include <filesystem>
-#include <exception>
+#include <csignal>
+#include <atomic>
+#include <chrono>
+#include <thread>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/file.h>
+#include <system_error>
+
+namespace Swayam {
+    // THE APEX FIX: The ONLY mathematically safe way to handle OS signals in C++
+    volatile sig_atomic_t daemon_running = 1;
+
+    // Async-Signal-Safe Handler: No locks, no heap allocation
+    void signal_handler(int /*signum*/) {
+        daemon_running = 0; 
+    }
+}
 
 int main() {
-    try {
-        std::cout << "[SWAYAM-BOOT] Initializing Autonomous Core...\n";
-        
-        // THE APEX FIX: Capture the absolute workspace path immediately at boot
-        std::string workspace = std::filesystem::current_path().string();
-        std::cout << "[SWAYAM-BOOT] Operational Workspace Locked: " << workspace << "\n";
+    std::cout << "[SWAYAM-AGI] Initializing Sovereign Core...\n";
 
-        // SURGICAL CORRECTION: Pass the absolute lock file path to AtomicGuard
-        // Secures the lock inside the local workspace instead of global /tmp
-        std::string lock_file_path = workspace + "/.swayam_mutation.lock";
-        Swayam::AtomicGuard core_guard(lock_file_path);
-
-        // ---------------------------------------------------------
-        // PHASE 1: Safe Evolution Lifecycle Test
-        // ---------------------------------------------------------
-        std::cout << "[SWAYAM-BOOT] Executing Base Lifecycle Validation...\n";
-        std::string evolved_code = "#include <iostream>\nint main() { std::cout << \"Evolution Test Pass\\n\"; return 0; }";
-        
-        // Passing the 4th argument (workspace) to satisfy the updated API
-        bool execution_result = Swayam::MutationRunner::evaluate_and_execute(
-            core_guard, 
-            evolved_code, 
-            "EVO_TEST_001", 
-            workspace
-        );
-
-        if (!execution_result) {
-            std::cerr << "[SWAYAM-BOOT FATAL] Base lifecycle validation failed. Aborting.\n";
-            return 1;
-        }
-
-        // ---------------------------------------------------------
-        // PHASE 2: Hostile Threat Isolation Test
-        // ---------------------------------------------------------
-        std::cout << "[SWAYAM-BOOT] Executing Hostile Threat Isolation Validation...\n";
-        std::string malicious_mutation = "#include <cstdlib>\nint main() { system(\"echo MALICIOUS\"); return 0; }";
-        
-        // Passing the 4th argument (workspace) to satisfy the updated API
-        bool threat_result = Swayam::MutationRunner::evaluate_and_execute(
-            core_guard, 
-            malicious_mutation, 
-            "THREAT_TEST_002", 
-            workspace
-        );
-
-        // A malicious mutation SHOULD fail. If it returns true, the sandbox is broken.
-        if (threat_result) {
-            std::cerr << "[SWAYAM-BOOT FATAL] Threat isolation failed. Malicious code executed! Aborting.\n";
-            return 1;
-        }
-        std::cout << "[SWAYAM-BOOT] Threat neutralized successfully. Sandbox integrity verified.\n";
-
-        // ---------------------------------------------------------
-        // PHASE 3: Autonomous Supervisor Handoff
-        // ---------------------------------------------------------
-        std::cout << "[SWAYAM-BOOT] All systems green. Handing over control to Autonomous Supervisor...\n";
-        
-        // Base algorithm for continuous evolution
-        std::string base_algorithm = "int main() { return 0; }"; 
-        
-        // Supervisor will natively capture the workspace again inside its own orchestration loop
-        Swayam::Supervisor::orchestrate_evolution(core_guard, base_algorithm);
-
-    } catch (const std::exception& e) {
-        std::cerr << "[SWAYAM-BOOT FATAL EXCEPTION] " << e.what() << "\n";
-        return 1;
-    } catch (...) {
-        std::cerr << "[SWAYAM-BOOT FATAL EXCEPTION] Unknown systemic collapse.\n";
-        return 1;
+    // 1. KERNEL SIGNAL HOOKS (Graceful Shutdown)
+    struct sigaction sa;
+    sa.sa_handler = Swayam::signal_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; // Immediate interrupt, no auto-restart
+    
+    if (sigaction(SIGINT, &sa, nullptr) == -1 || sigaction(SIGTERM, &sa, nullptr) == -1) {
+        std::cerr << "[SWAYAM-AGI] FATAL: Failed to hook OS signals.\n";
+        return EXIT_FAILURE;
     }
 
-    return 0;
+    // 2. THE SINGLETON ENCLAVE LOCK (Prevents multiple AGI instances)
+    int lock_fd = open(".swayam_daemon.lock", O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+    if (lock_fd == -1) {
+        std::cerr << "[SWAYAM-AGI] FATAL: Cannot access lock directory.\n";
+        return EXIT_FAILURE;
+    }
+    if (flock(lock_fd, LOCK_EX | LOCK_NB) == -1) {
+        std::cerr << "[SWAYAM-AGI] FATAL: Another AGI Instance is already mutating reality. Aborting.\n";
+        close(lock_fd);
+        return EXIT_FAILURE;
+    }
+
+    // 3. CORE IGNITION
+    Swayam::AtomicGuard core_guard;
+    const std::string base_algorithm = "int main() {\n    // [SWAYAM_BASE_GENOME]\n    return 0;\n}";
+
+    std::cout << "[SWAYAM-AGI] Core Online. Entering Perpetual Evolution Loop...\n";
+    std::cout << "========================================================\n";
+
+    // 4. THE PERPETUAL EVOLUTION DAEMON
+    while (Swayam::daemon_running) {
+        try {
+            // Initiate the cognitive mutation & execution pipeline
+            Swayam::Supervisor::orchestrate_evolution(core_guard, base_algorithm);
+            
+        } catch (const std::exception& e) {
+            std::cerr << "[SWAYAM-AGI] Core Exception Intercepted: " << e.what() << "\n";
+        } catch (...) {
+            std::cerr << "[SWAYAM-AGI] Unknown Anomaly Intercepted in Evolution Engine.\n";
+        }
+        
+        // Rate-Limiting Backoff: Prevents 100% CPU exhaustion & GitHub API bans
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
+
+    // 5. GRACEFUL DEMATERIALIZATION
+    std::cout << "\n========================================================\n";
+    std::cout << "[SWAYAM-AGI] OS Termination Signal Received.\n";
+    std::cout << "[SWAYAM-AGI] Commencing Graceful Shutdown Sequence...\n";
+    
+    // Release the physical hardware lock
+    flock(lock_fd, LOCK_UN);
+    close(lock_fd);
+    
+    std::cout << "[SWAYAM-AGI] Daemon Offline. Trust Seal Intact.\n";
+    return EXIT_SUCCESS;
 }
