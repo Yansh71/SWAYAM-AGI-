@@ -3,9 +3,9 @@
 // =============================================================
 // SWAYAM MutationRunner — The Apex Execution Pipeline
 // 
-// ARCHITECTURE ENFORCEMENT: Uses local isolated .swayam_vault 
-// to prevent /tmp race conditions. Implements native dynamic 
-// timeouts (60s compile, 3s execute) to prevent False-Positive DoS.
+// ARCHITECTURE ENFORCEMENT: Preserves temporal artifacts for 
+// publishing. Validates dynamic workspace context for vaulting 
+// to survive root process daemonization.
 // =============================================================
 #include "core.hpp"
 #include "SafeShell.hpp"
@@ -25,7 +25,6 @@ namespace Swayam {
 
 class MutationRunner {
 private:
-    // Native dynamic watchdog to prevent circular includes with Supervisor
     static bool enforce_timeout(pid_t pid, int max_timeout_ms) noexcept {
         int status = 0;
         pid_t wpid;
@@ -39,29 +38,28 @@ private:
                 usleep(sleep_interval_ms * 1000);
                 timeout_counter++;
                 if (timeout_counter > max_ticks) {
-                    std::cerr << "[SWAYAM-RUNNER] ALERT: Timeout exceeded. Terminating process...\n";
-                    kill(pid, SIGTERM);
-                    usleep(100000);
+                    std::cerr << "[SWAYAM-RUNNER] ALERT: Timeout exceeded. Terminating...\n";
+                    kill(pid, SIGTERM); 
+                    usleep(100000); 
                     kill(pid, SIGKILL);
-                    waitpid(pid, &status, 0); // Reap zombie
+                    waitpid(pid, &status, 0); 
                     return false;
                 }
             }
         } while (wpid == 0 || (wpid == -1 && errno == EINTR));
-        
         return (wpid > 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0);
     }
 
 public:
-    static bool evaluate_and_execute(AtomicGuard& guard, const std::string& source_code, const std::string& mutation_id) {
+    static bool evaluate_and_execute(AtomicGuard& guard, const std::string& source_code, const std::string& mutation_id, const std::string& workspace) {
         auto analysis = HeuristicAnalyzer::evaluate_mutation(source_code);
         if (!analysis.is_safe) {
             quarantine_by_content(source_code, mutation_id, 254);
             return false;
         }
 
-        // Local Isolated Vault Construction
-        std::string vault_dir = ".swayam_vault";
+        // THE APEX FIX: Absolute path targeting prevents chdir("/") destruction
+        std::string vault_dir = workspace + "/.swayam_vault";
         std::error_code ec;
         std::filesystem::create_directory(vault_dir, ec);
         std::filesystem::permissions(vault_dir, std::filesystem::perms::owner_all, ec);
@@ -70,13 +68,10 @@ public:
         std::string src_path = vault_dir + "/" + filename;
         std::string bin_path = vault_dir + "/bin_" + mutation_id;
         
-        if (!SecureArtifact::write_securely(vault_dir, filename, source_code)) {
-            return false;
-        }
-
-        if (is_quarantined(src_path)) {
-            std::filesystem::remove(src_path, ec);
-            return false;
+        if (!SecureArtifact::write_securely(vault_dir, filename, source_code)) return false;
+        if (is_quarantined(src_path)) { 
+            std::filesystem::remove(src_path, ec); 
+            return false; 
         }
 
         pid_t compile_pid = fork();
@@ -88,9 +83,7 @@ public:
             ::_exit(127);
         }
 
-        // 60-Second Relaxed Timeout for C++23 Compilation (Prevents DoS on heavy builds)
         if (!enforce_timeout(compile_pid, 60000)) {
-            std::cerr << "[SWAYAM-RUNNER] Compilation Failed or Timed out.\n";
             quarantine(src_path, 255);
             std::filesystem::remove(src_path, ec);
             return false;
@@ -109,20 +102,19 @@ public:
                 ::_exit(127);
             }
 
-            // 3-Second Hard Timeout for Autonomous Execution
             if (enforce_timeout(exec_pid, 3000)) {
-                std::cout << "[SWAYAM-RUNNER] Mutation executed flawlessly.\n";
                 execution_success = true;
             } else {
-                std::cerr << "[SWAYAM-RUNNER] Execution Failed or Timed out.\n";
                 quarantine(src_path, 1);
             }
-        } catch (const std::exception& e) {
-            std::cerr << "[SWAYAM-RUNNER] Exception: " << e.what() << "\n";
-        }
+        } catch (...) { /* Exception handled silently */ }
 
-        std::filesystem::remove(src_path, ec);
-        std::filesystem::remove(bin_path, ec);
+        std::filesystem::remove(bin_path, ec); 
+        // Only wipe source if failed; GitCortex needs it upon success
+        if (!execution_success) {
+            std::filesystem::remove(src_path, ec);
+        }
+        
         return execution_success;
     }
 };
