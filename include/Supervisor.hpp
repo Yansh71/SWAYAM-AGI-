@@ -1,13 +1,5 @@
 #ifndef SWAYAM_SUPERVISOR_HPP
 #define SWAYAM_SUPERVISOR_HPP
-// =============================================================
-// SWAYAM Supervisor — The Central Cognitive Orchestrator
-//
-// ARCHITECTURE ENFORCEMENT: Immutability Lock Engaged.
-// SAST COMPLIANCE: Eliminates CWE-732 via std::filesystem::permissions.
-// ZERO-LEAK MEMORY: Implements RAII SecureTokenGuard to guarantee 
-// volatile RAM wiping (CWE-14 evasion) even during C++ exception unwinding.
-// =============================================================
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -27,96 +19,141 @@ namespace Swayam {
 
 class Supervisor {
 private:
-    // THE APEX FIX: RAII Secure Token Guard
-    // Guarantees absolute RAM sanitization upon scope exit.
     struct SecureTokenGuard {
         std::string token_val;
-
-        // Constructor: Extracts from OS and immediately hides it
         explicit SecureTokenGuard(const char* env_ptr) {
             if (env_ptr) {
                 token_val = env_ptr;
-                unsetenv("GITHUB_TOKEN"); 
+                unsetenv("GITHUB_TOKEN");
             }
         }
-
-        // Destructor: Mathematically forces CPU to overwrite memory with zeros
         ~SecureTokenGuard() {
             if (!token_val.empty()) {
                 volatile char* ptr = token_val.data();
-                for (size_t i = 0; i < token_val.size(); ++i) {
+                for (size_t i = 0; i < token_val.size(); ++i)
                     ptr[i] = '\0';
-                }
             }
         }
-
-        // Restores token to the environment strictly for Git API sync
         void restore() const {
-            if (!token_val.empty()) {
+            if (!token_val.empty())
                 setenv("GITHUB_TOKEN", token_val.c_str(), 1);
-            }
         }
     };
 
-public:
-    static void orchestrate_evolution(AtomicGuard& guard, const std::string& base_algorithm) {
-        std::string workspace = ".";
-        std::string vault_path = workspace + "/.swayam_vault";
-
-        // Pre-flight Integrity Check (Pure C++23 POSIX permissions)
+    static void write_status(const std::string& workspace,
+                              const std::string& outcome,
+                              const std::string& reason = "") {
+        std::string meta_dir = workspace + "/meta";
         std::error_code ec;
-        if (!std::filesystem::exists(vault_path, ec)) {
-            std::filesystem::create_directory(vault_path, ec);
-            std::filesystem::permissions(vault_path, 
-                std::filesystem::perms::owner_all, 
-                std::filesystem::perm_options::replace, ec);
+        std::filesystem::create_directories(meta_dir, ec);
+
+        std::ofstream f(meta_dir + "/status.json");
+        if (!f) return;
+        f << "{\n  \"outcome\": \"" << outcome << "\"";
+        if (!reason.empty())
+            f << ",\n  \"reason\": \"" << reason << "\"";
+        f << "\n}\n";
+    }
+
+    static void write_rationale(const std::string& workspace,
+                                 const std::string& mutation_id) {
+        std::string meta_dir = workspace + "/meta";
+        std::error_code ec;
+        std::filesystem::create_directories(meta_dir, ec);
+
+        std::ofstream f(meta_dir + "/rationale.md");
+        if (!f) return;
+        f << "# Mutation Rationale\n\n";
+        f << "**Mutation ID:** " << mutation_id << "\n\n";
+        f << "Mutation passed all security phases and sandbox execution.\n";
+        f << "Approved for autonomous assimilation.\n";
+    }
+
+public:
+    static void orchestrate_evolution(AtomicGuard& guard,
+                                       const std::string& base_algorithm) {
+        // FIX: Use the mounted writable workspace path
+        const std::string workspace =
+            "/home/swayam_agent/workspace";
+        const std::string vault_path = workspace + "/src/generated";
+
+        std::error_code ec;
+        std::filesystem::create_directories(vault_path, ec);
+        if (ec) {
+            std::cerr << "[SUPERVISOR] Cannot create vault: "
+                      << ec.message() << "\n";
+            write_status(workspace, "quarantined",
+                         "vault creation failed: " + ec.message());
+            return;
         }
 
-        std::string evolved_code = CognitiveForge::evolve_codebase(base_algorithm);
-        std::string mutation_id = "EVO_" + std::to_string(std::hash<std::string>{}(evolved_code));
+        std::string evolved_code =
+            CognitiveForge::evolve_codebase(base_algorithm);
+        std::string mutation_id =
+            "EVO_" +
+            std::to_string(
+                std::hash<std::string>{}(evolved_code));
 
-        AnalysisResult analysis = HeuristicAnalyzer::evaluate_mutation(evolved_code);
+        AnalysisResult analysis =
+            HeuristicAnalyzer::evaluate_mutation(evolved_code);
         if (!analysis.is_safe) {
-            std::cerr << "[SWAYAM-SUPERVISOR] Threat detected: " << analysis.threat_signature << "\n";
-            NexusC2::transmit_telemetry(mutation_id, "QUARANTINED_" + analysis.threat_signature);
+            std::cerr << "[SUPERVISOR] Threat: "
+                      << analysis.threat_signature << "\n";
+            NexusC2::transmit_telemetry(
+                mutation_id,
+                "QUARANTINED_" + analysis.threat_signature);
+            write_status(workspace, "quarantined",
+                         analysis.threat_signature);
             return;
         }
 
-        std::string target_file = vault_path + "/mut_" + mutation_id + ".cpp";
-        std::ofstream out_file(target_file);
-        if (out_file.is_open()) {
-            out_file << evolved_code;
-            out_file.close();
-        } else {
-            NexusC2::transmit_telemetry(mutation_id, "VAULT_WRITE_FAILURE");
-            return;
+        std::string target_file =
+            vault_path + "/mut_" + mutation_id + ".cpp";
+        {
+            std::ofstream out(target_file);
+            if (!out) {
+                NexusC2::transmit_telemetry(mutation_id,
+                                             "VAULT_WRITE_FAILURE");
+                write_status(workspace, "quarantined",
+                             "vault write failure");
+                return;
+            }
+            out << evolved_code;
         }
 
-        // ENABLING THE RAII GUARD: Token is pulled and immediately unset from OS
         SecureTokenGuard token_guard(std::getenv("GITHUB_TOKEN"));
 
-        // Execute the sandbox (The untrusted payload runs now, completely blind to the token)
-        bool success = MutationRunner::evaluate_and_execute(guard, evolved_code, mutation_id, workspace);
+        bool success = MutationRunner::evaluate_and_execute(
+            guard, evolved_code, mutation_id, workspace);
 
         if (success) {
-            // Restore token safely since the payload has been terminated
             token_guard.restore();
 
-            if (GitCortex::publish_evolution(mutation_id, target_file, workspace)) {
-                std::cout << "[SWAYAM-SUPERVISOR] Neural Upload Verified.\n";
-                HiveMind::register_mutation_hash(std::to_string(std::hash<std::string>{}(evolved_code)), workspace);
-                NexusC2::transmit_telemetry(mutation_id, "ASSIMILATED_AND_UPLOADED");
-                
+            write_rationale(workspace, mutation_id);
+
+            if (GitCortex::publish_evolution(
+                    mutation_id, target_file, workspace)) {
+                std::cout << "[SUPERVISOR] Neural Upload Verified.\n";
+                HiveMind::register_mutation_hash(
+                    std::to_string(
+                        std::hash<std::string>{}(evolved_code)),
+                    workspace);
+                NexusC2::transmit_telemetry(mutation_id,
+                                             "ASSIMILATED");
                 GitCortex::sync_ledgers(workspace);
+                write_status(workspace, "published");
             } else {
-                NexusC2::transmit_telemetry(mutation_id, "GIT_UPLOAD_FAILED");
+                NexusC2::transmit_telemetry(mutation_id,
+                                             "GIT_UPLOAD_FAILED");
+                write_status(workspace, "quarantined",
+                             "git upload failed");
             }
         } else {
-            NexusC2::transmit_telemetry(mutation_id, "EXECUTION_TERMINATED_BY_SANDBOX");
+            NexusC2::transmit_telemetry(
+                mutation_id, "EXECUTION_TERMINATED_BY_SANDBOX");
+            write_status(workspace, "quarantined",
+                         "sandbox execution failed");
         }
-        
-        // As orchestrate_evolution ends, token_guard goes out of scope.
-        // Its destructor is called automatically, and the RAM is wiped flawlessly.
     }
 };
 
